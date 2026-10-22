@@ -54,21 +54,6 @@ npm run serve      # sirve docs/ en local para probar la versión web
 
 Edita siempre `src/` y vuelve a ejecutar `npm run build`. No edites `docs/` a mano: se sobrescribe.
 
-## Subir a GitHub
-
-El repositorio ya está inicializado con un primer commit en la rama `main`. Crea un repositorio vacío en GitHub (sin README) y:
-
-```bash
-git remote add origin https://github.com/TU_USUARIO/cartera.git
-git push -u origin main
-```
-
-Si Git en Windows avisa de "dubious ownership" la primera vez:
-
-```bash
-git config --global --add safe.directory "C:/Users/NéstorAlmaléBayona/Documents/cartera"
-```
-
 ## Publicar la versión web e instalarla en el iPad
 
 1. En GitHub: Settings → Pages → Build and deployment → Source: "Deploy from a branch", rama `main`, carpeta `/docs`. Guarda.
