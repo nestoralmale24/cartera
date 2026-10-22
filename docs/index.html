@@ -2446,7 +2446,14 @@ boot();
 
 <script>
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '[::1]';
+  window.addEventListener('load', function () {
+    if (!local) { navigator.serviceWorker.register('sw.js').catch(function () {}); return; }
+    navigator.serviceWorker.getRegistrations().then(function (rs) {
+      if (!rs.length) return;
+      Promise.all(rs.map(function (r) { return r.unregister(); })).then(function () { location.reload(); });
+    });
+  });
 }
 </script>
 </body>
