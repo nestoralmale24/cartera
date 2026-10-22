@@ -24,6 +24,16 @@ self.addEventListener('fetch', e => {
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!sameOrigin && !isFont) return;
 
+  // config.json: siempre de la red si hay conexión, para que los cambios del repositorio lleguen enseguida.
+  if (sameOrigin && url.pathname.endsWith('/config.json')) {
+    e.respondWith(
+      fetch(req)
+        .then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return res; })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
   // La página: primero la red (para recibir actualizaciones) y, sin conexión, la copia guardada.
   if (req.mode === 'navigate') {
     e.respondWith(

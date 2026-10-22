@@ -1,5 +1,5 @@
 /* Service worker de la versión web: permite abrir la app sin conexión.
-   El build sustituye 52291dab49 por un hash del contenido para que cada versión nueva
+   El build sustituye 287b5dde25 por un hash del contenido para que cada versión nueva
    reemplace la caché anterior. */
 const CACHE = 'cartera-__VERSION__';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
@@ -23,6 +23,16 @@ self.addEventListener('fetch', e => {
   const sameOrigin = url.origin === self.location.origin;
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!sameOrigin && !isFont) return;
+
+  // config.json: siempre de la red si hay conexión, para que los cambios del repositorio lleguen enseguida.
+  if (sameOrigin && url.pathname.endsWith('/config.json')) {
+    e.respondWith(
+      fetch(req)
+        .then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return res; })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
 
   // La página: primero la red (para recibir actualizaciones) y, sin conexión, la copia guardada.
   if (req.mode === 'navigate') {

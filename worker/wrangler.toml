@@ -1,0 +1,7 @@
+# Despliegue con la línea de comandos (opcional): desde esta carpeta, npx wrangler deploy
+name = "cartera-precios"
+main = "precios.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://nestoralmale24.github.io,http://localhost:3000,http://127.0.0.1:3000"

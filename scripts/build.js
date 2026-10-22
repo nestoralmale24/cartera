@@ -1,7 +1,8 @@
 'use strict';
 /* Genera las dos versiones de la cartera a partir de src/:
      dist/cartera-claude.html  -> página para publicar como artefacto en Claude (datos sincronizados y precios online)
-     docs/                      -> app web instalable (PWA) para GitHub Pages: funciona sin conexión, datos en el dispositivo
+     docs/                      -> app web instalable (PWA) para GitHub Pages: funciona sin conexión, datos en el dispositivo,
+                                   precios online a través de tu servidor (worker/, dirección en config.json)
    Uso: node scripts/build.js */
 const fs = require('fs');
 const path = require('path');
@@ -59,9 +60,17 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 wr('docs/index.html', html);
 wr('docs/sw.js', rd('src/web/sw.js').replace('__VERSION__', version));
 cp('src/web/manifest.webmanifest', 'docs/manifest.webmanifest');
+// Configuración de la versión web (dirección del servidor de precios). Se edita en config.json, en la raíz.
+let cfg = { priceProxy: '' };
+if (fs.existsSync(path.join(root, 'config.json'))) {
+  try { cfg = JSON.parse(rd('config.json')); } catch (e) { throw new Error('config.json no es un JSON válido: ' + e.message); }
+}
+if (cfg.priceProxy && !/^https:\/\//.test(cfg.priceProxy)) throw new Error('config.json: priceProxy debe empezar por https://');
+wr('docs/config.json', JSON.stringify({ priceProxy: cfg.priceProxy || '' }, null, 2) + '\n');
 for (const f of fs.readdirSync(path.join(root, 'src/web/icons'))) cp('src/web/icons/' + f, 'docs/icons/' + f);
 wr('docs/.nojekyll', '');
 
 const kb = s => (Buffer.byteLength(s) / 1024).toFixed(0) + ' KB';
 console.log('dist/cartera-claude.html  ' + kb(claude));
 console.log('docs/index.html           ' + kb(html) + '  (versión ' + version + ')');
+console.log('servidor de precios       ' + (cfg.priceProxy || 'sin configurar (config.json)'));

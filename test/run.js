@@ -2,7 +2,9 @@
 /* Pruebas de humo con jsdom: npm install && npm test
    1) Versión Claude abierta fuera de Claude (modo local) + cartera de ejemplo
    2) Versión Claude con base de datos y Yahoo Finance simulados
-   3) Versión web instalable (modo independiente) */
+   3) Versión web instalable (modo independiente), sin servidor de precios
+   4) Versión web con servidor de precios simulado
+   5) Servidor de precios (worker/precios.js) con Yahoo simulado */
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
@@ -25,6 +27,7 @@ function open(html, opts = {}) {
       w.addEventListener('error', e => errors.push(e.message + ' ' + (e.error && e.error.stack)));
       w.console.error = (...a) => errors.push(a.join(' '));
       if (opts.claude) w.claude = opts.claude;
+      if (opts.fetch) w.fetch = opts.fetch;
     }
   });
   return { dom, w: dom.window, d: dom.window.document, errors };
@@ -118,9 +121,87 @@ async function testWeb() {
   w.close();
 }
 
+function yahooBody(url) {
+  const now = Math.floor(Date.now() / 1000);
+  const series = (n, p0, step) => { const ts = [], c = []; for (let i = n; i >= 0; i--) { ts.push(now - i * 86400); c.push(+(p0 + (n - i) * step).toFixed(2)); } return { ts, c }; };
+  if (url.includes('/v1/finance/search')) return { quotes: [{ quoteType: 'EQUITY', symbol: 'AMZN', longname: 'Amazon.com, Inc.', exchDisp: 'NASDAQ' }] };
+  if (url.includes('/v8/finance/chart/')) {
+    const sym = decodeURIComponent(url.split('/chart/')[1].split('?')[0]);
+    const s = series(250, sym === 'AMZN' ? 180 : 0.9, sym === 'AMZN' ? 0.1 : 0);
+    return { chart: { result: [{ meta: { currency: sym === 'AMZN' ? 'USD' : 'EUR', regularMarketPrice: s.c[s.c.length - 1] }, timestamp: s.ts, indicators: { quote: [{ close: s.c }] } }] } };
+  }
+  const syms = decodeURIComponent(url.split('symbols=')[1].split('&')[0]).split(',');
+  const out = {};
+  for (const sym of syms) { const s = series(250, sym === 'AMZN' ? 190 : 0.9, sym === 'AMZN' ? 0.1 : 0); out[sym] = { timestamp: s.ts, close: s.c }; }
+  return out;
+}
+const resp = (obj, status) => ({ ok: (status || 200) < 400, status: status || 200, text: async () => JSON.stringify(obj), json: async () => obj });
+
+async function testWebProxy() {
+  console.log('4) Versión web con servidor de precios');
+  const calls = [];
+  const fetchMock = async url => {
+    url = String(url); calls.push(url);
+    if (url.endsWith('config.json')) return resp({ priceProxy: 'https://precios.test' });
+    if (!url.startsWith('https://precios.test/')) throw new Error('dirección inesperada ' + url);
+    return resp(yahooBody(url));
+  };
+  const { w, d, errors } = open(webHtml, { full: true, fetch: fetchMock });
+  await sleep(250);
+  ok('lee config.json', calls.some(u => u.endsWith('config.json')));
+  ok('muestra el botón de precios', d.querySelector('#refreshBtn').hidden === false);
+  d.querySelector('[data-action="add-inv"]').click(); await sleep(60);
+  ok('ofrece buscar online', /Buscar online/.test(d.querySelector('form[data-form="search"] button[type=submit]').textContent));
+  const q = d.querySelector('#f-q'); q.value = 'amazon'; fire(w, q, 'input');
+  fire(w, d.querySelector('form[data-form="search"]'), 'submit'); await sleep(100);
+  ok('encuentra Amazon en Yahoo', /Amazon/.test(d.querySelector('#results [data-src="online"]').textContent));
+  d.querySelector('#results [data-src="online"]').click(); await sleep(200);
+  const f = d.querySelector('form[data-form="tx"]');
+  ok('trae el precio en euros', f.elements.price.value === '184,5', f.elements.price.value);
+  ok('ya no pone Sin precio', !/Sin precio/.test(d.querySelector('.chosen').textContent));
+  f.elements.qty.value = '3'; fire(w, f, 'submit'); await sleep(700);
+  d.querySelector('#refreshBtn').click(); await sleep(300);
+  const a = [...w.__cartera.D().values()].find(x => x.kind === 'asset');
+  ok('actualiza la cotización', a.price === 215, String(a.price));
+  d.querySelector('[data-action="settings"]').click(); await sleep(60);
+  ok('Ajustes muestra el servidor', /Activos con tu servidor/.test(d.querySelector('.kv').textContent) && d.querySelector('#px-url').value === 'https://precios.test');
+  ok('todas las consultas van a tu servidor', calls.filter(u => !u.endsWith('config.json')).every(u => u.startsWith('https://precios.test/v')));
+  ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
+  w.close();
+}
+
+async function testWorker() {
+  console.log('5) Servidor de precios');
+  const mod = await import(require('url').pathToFileURL(path.join(root, 'worker/precios.js')).href);
+  const worker = mod.default;
+  const seen = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { seen.push({ url: String(url), init }); return new Response(JSON.stringify(yahooBody(String(url))), { status: 200 }); };
+  try {
+    const ORIGIN = 'https://nestoralmale24.github.io';
+    let r = await worker.fetch(new Request('https://w.test/v8/finance/chart/USDEUR%3DX?range=1y&interval=1d&malo=1', { headers: { Origin: ORIGIN } }), {});
+    ok('reenvía el histórico a Yahoo', r.status === 200 && seen[0].url === 'https://query1.finance.yahoo.com/v8/finance/chart/USDEUR%3DX?range=1y&interval=1d', seen[0] && seen[0].url);
+    ok('cabecera CORS para tu web', r.headers.get('Access-Control-Allow-Origin') === ORIGIN);
+    r = await worker.fetch(new Request('https://w.test/v8/finance/spark?symbols=AMZN,EURUSD=X&range=1y&interval=1d', { headers: { Origin: ORIGIN } }), {});
+    ok('reenvía la cotización múltiple', r.status === 200 && /symbols=AMZN%2CEURUSD%3DX/.test(seen[1].url));
+    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=amazon', { headers: { Origin: ORIGIN } }), {});
+    ok('reenvía la búsqueda', r.status === 200 && seen[2].url.startsWith('https://query1.finance.yahoo.com/v1/finance/search?q=amazon'));
+    r = await worker.fetch(new Request('https://w.test/v10/finance/quoteSummary/AAPL', { headers: { Origin: ORIGIN } }), {});
+    ok('rechaza otras rutas', r.status === 404 && seen.length === 3);
+    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=x', { headers: { Origin: 'https://otra-web.example' } }), {});
+    ok('rechaza otras webs', r.status === 403 && seen.length === 3);
+    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=x', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), {});
+    ok('responde a la comprobación previa', r.status === 204);
+    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=x', { headers: { Origin: 'https://otra-web.example' } }), { ALLOWED_ORIGINS: '*' });
+    ok('ALLOWED_ORIGINS="*" abre a cualquier web', r.status === 200);
+  } finally { globalThis.fetch = realFetch; }
+}
+
 (async () => {
   await testLocalDemo();
   await testDbMock();
   await testWeb();
+  await testWebProxy();
+  await testWorker();
   console.log('Todas las pruebas han pasado.');
 })().catch(e => { console.error('FALLO: ' + e.stack); process.exit(1); });

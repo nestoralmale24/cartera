@@ -547,22 +547,62 @@ function upcoming(days) {
 }
 
 /* =========================================================
-   Precios online: Yahoo Finance a través del navegador de Claude
+   Precios online: Yahoo Finance a través del navegador de Claude (versión Claude)
+   o de tu servidor de precios en Cloudflare (versión web)
    ========================================================= */
-const B = { mcp: null, checked: false, tabId: null, busy: false };
+const B = { mcp: null, checked: false, tabId: null, busy: false, proxy: '', cfgProxy: '', autoWarned: false };
+const LS_PROXY = 'cartera.proxy.v1';
+const online = () => !S.demo && !!(B.mcp || B.proxy);
+function cleanProxy(u) {
+  u = String(u || '').trim().replace(/\/+$/, '');
+  if (!u) return '';
+  if (/^https:\/\/[^\s/]+/i.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(u)) return u;
+  return '';
+}
+function searchHelp() {
+  if (S.demo) return 'En el ejemplo se busca solo en las sugerencias.';
+  if (B.mcp) return 'Busca en Yahoo Finance con el navegador de Claude. La primera vez te pedirá permiso.';
+  if (B.proxy) return 'Busca en Yahoo Finance a través de tu servidor de precios.';
+  if (!B.checked) return 'Comprobando acceso a precios online...';
+  return STANDALONE ? 'Sin servidor de precios configurado: elige una sugerencia o añádelo a mano. Puedes activarlo en Ajustes.' : 'Aquí no hay acceso a precios online. Elige una sugerencia o añádelo a mano; desde el escritorio se actualizará.';
+}
+function onlineUI() {
+  const rb = $('#refreshBtn'); if (rb && STANDALONE) rb.hidden = !B.proxy;
+  renderTop(); scheduleRender();
+  const sf = $('form[data-form="search"]');
+  if (sf) {
+    const b = sf.querySelector('button[type="submit"]'); if (b) b.textContent = online() ? 'Buscar online' : 'Buscar';
+    const hp = sf.querySelector('.help'); if (hp) hp.textContent = searchHelp();
+  }
+  const top = SH.stack[SH.stack.length - 1];
+  if (SH.open && top && top.fn === shSettings) paintSheet(false); else refreshOpenSheet(true);
+}
+function autoRefresh() {
+  if (!STANDALONE || !B.proxy || S.demo || S.mode !== 'local' || B.busy) return;
+  const st = settings();
+  if (st.pricesAt && Date.now() - st.pricesAt < 20 * 60000) return;
+  if (!all('asset').some(a => a.symbol)) return;
+  refreshPrices({ auto: true });
+}
 const BS = 'host:claude_browser';
 const YH = 'https://query1.finance.yahoo.com';
 async function initBrowser() {
+  if (STANDALONE) {
+    let cfg = null;
+    try { const r = await fetch('config.json', { cache: 'no-cache' }); if (r.ok) cfg = await r.json(); } catch (e) { /* sin config.json */ }
+    B.cfgProxy = cleanProxy(cfg && cfg.priceProxy);
+    const own = lsGet(LS_PROXY);
+    B.proxy = own && typeof own.url === 'string' ? cleanProxy(own.url) : B.cfgProxy;
+    B.checked = true;
+    diag('precios online: ' + (B.proxy ? 'servidor ' + B.proxy.replace(/^https?:\/\//, '') : 'sin servidor configurado'));
+    onlineUI(); autoRefresh();
+    return;
+  }
   try { B.mcp = (window.claude && typeof window.claude.use === 'function') ? await window.claude.use('mcp') : null; }
   catch (e) { B.mcp = null; }
   B.checked = true;
   diag('precios online: ' + (B.mcp ? 'disponibles' : 'no disponibles aquí'));
-  renderTop(); refreshOpenSheet(true);
-  const sf = $('form[data-form="search"]');
-  if (sf) {
-    const b = sf.querySelector('button[type="submit"]'); if (b) b.textContent = B.mcp && !S.demo ? 'Buscar online' : 'Buscar';
-    const hp = sf.querySelector('.help'); if (hp) hp.textContent = B.mcp && !S.demo ? 'Busca en Yahoo Finance con el navegador de Claude. La primera vez te pedirá permiso.' : (STANDALONE ? 'Esta versión no busca online. Elige una sugerencia o añádelo a mano con su precio.' : 'Aquí no hay acceso a precios online. Elige una sugerencia o añádelo a mano; desde el escritorio se actualizará.');
-  }
+  onlineUI();
 }
 function textOf(r) {
   const p = r && typeof r === 'object' && 'payload' in r ? r.payload : r;
@@ -581,7 +621,26 @@ function jsonFrom(t) {
   if (a < 0 || b <= a) throw new Error('Yahoo Finance no devolvió datos');
   return JSON.parse(s.slice(a, b + 1));
 }
+async function proxyJSON(url) {
+  const target = B.proxy + url.slice(YH.length);
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 20000);
+  let r, txt;
+  try {
+    r = await fetch(target, ctrl ? { signal: ctrl.signal } : {});
+    txt = await r.text();
+  } catch (e) {
+    const er = new Error('sin respuesta'); er.code = 'proxy_unreachable'; throw er;
+  } finally { clearTimeout(timer); }
+  if (!r.ok) {
+    let msg = 'error ' + r.status;
+    try { const j = JSON.parse(txt); msg = (j && j.chart && j.chart.error && j.chart.error.description) || (j && j.error) || msg; } catch (e) { /* no es JSON */ }
+    const er = new Error(msg); er.code = r.status === 403 ? 'proxy_origin' : r.status === 429 ? 'rate_limited' : 'proxy_http'; er.status = r.status; throw er;
+  }
+  try { return JSON.parse(txt); } catch (e) { throw new Error('respuesta no válida del servidor de precios'); }
+}
 async function webJSON(url) {
+  if (!B.mcp && B.proxy) return proxyJSON(url);
   if (!B.mcp) { const e = new Error('Sin navegador'); e.code = 'no_browser'; throw e; }
   if (B.tabId) {
     try { await B.mcp.callTool(BS, 'navigate', { url, tabId: B.tabId }); }
@@ -646,18 +705,23 @@ async function ySpark(syms) {
 }
 function browserErr(e) {
   const c = String(e && e.code || ''), m = String(e && e.message || e || '');
-  if (c === 'no_browser') return 'Los precios online solo funcionan en la app de escritorio de Claude.';
+  if (c === 'no_browser') return STANDALONE ? 'Configura tu servidor de precios en Ajustes para buscar online.' : 'Los precios online solo funcionan en la app de escritorio de Claude.';
+  if (c === 'proxy_unreachable') return 'Tu servidor de precios no responde. Revisa la dirección en Ajustes o tu conexión a internet.';
+  if (c === 'proxy_origin') return 'Tu servidor de precios no acepta esta web. Añade ' + location.origin + ' a ALLOWED_ORIGINS en Cloudflare.';
+  if (c === 'proxy_http' && e.status === 404) return 'Yahoo Finance no tiene ese ticker (' + m + ').';
+  if (c === 'proxy_http') return 'Tu servidor de precios devolvió un error: ' + m + '.';
   if (/grant|denied|consent|permission/i.test(c)) return 'Hace falta tu permiso para usar el navegador de Claude. Puedes darlo en los permisos de esta página.';
   if (/not_connected|unavailable/i.test(c)) return 'El navegador de Claude no está disponible aquí. Ábrela en la app de escritorio.';
   if (/rate/i.test(c)) return 'Demasiadas consultas seguidas. Prueba en un minuto.';
   return 'No pude leer Yahoo Finance' + (m ? ': ' + m : '.');
 }
-async function refreshPrices() {
-  if (S.demo) return toast('En el ejemplo los precios son inventados y no se actualizan.');
-  if (!B.mcp) return toast(STANDALONE ? 'Esta versión no trae precios online. Pon el precio a mano en la ficha de cada activo.' : B.checked ? 'Los precios online se traen desde la app de escritorio de Claude. En el móvil puedes poner el precio a mano en cada activo.' : 'Conectando con el navegador de Claude...');
+async function refreshPrices(opts) {
+  opts = opts || {};
+  if (S.demo) return opts.auto ? 0 : toast('En el ejemplo los precios son inventados y no se actualizan.');
+  if (!online()) return opts.auto ? 0 : toast(STANDALONE ? 'Configura tu servidor de precios en Ajustes para traer cotizaciones. Mientras, pon el precio a mano en la ficha de cada activo.' : B.checked ? 'Los precios online se traen desde la app de escritorio de Claude. En el móvil puedes poner el precio a mano en cada activo.' : 'Conectando con el navegador de Claude...');
   if (B.busy) return;
   const assets = all('asset').filter(a => a.symbol);
-  if (!assets.length) return toast('Ningún activo tiene ticker de Yahoo. Puedes añadirlo en la ficha de cada activo.');
+  if (!assets.length) return opts.auto ? 0 : toast('Ningún activo tiene ticker de Yahoo. Puedes añadirlo en la ficha de cada activo.');
   B.busy = true; renderTop();
   try {
     const res = {};
@@ -683,15 +747,15 @@ async function refreshPrices() {
       refineTxs(a); put(a, true); n++;
     }
     scheduleRender();
-    toast(failed.length ? 'Actualizados ' + n + ' de ' + assets.length + '. Sin datos: ' + failed.slice(0, 2).join(', ') : 'Precios actualizados');
+    if (!opts.auto || failed.length) toast(failed.length ? 'Actualizados ' + n + ' de ' + assets.length + '. Sin datos: ' + failed.slice(0, 2).join(', ') : 'Precios actualizados');
   } catch (e) {
     diag('actualizar: ' + (e && (e.code || '')) + ' ' + (e && e.message || e));
-    toast(browserErr(e));
+    if (!opts.auto || !B.autoWarned) { B.autoWarned = true; toast(browserErr(e)); }
   } finally { B.busy = false; renderTop(); refreshOpenSheet(); }
 }
 async function fillHistory(id, quiet) {
   const a0 = D().get(id);
-  if (!a0 || !a0.symbol || !B.mcp) return 0;
+  if (!a0 || !a0.symbol || !online()) return 0;
   const pend = (a0.txs || []).filter(t => t.auto && (t.pending || t.est));
   if (!pend.length) return 0;
   const eds = pend.map(t => toEd(t.date));
@@ -794,7 +858,7 @@ function renderTop() {
   const age = $('#priceAge');
   if (age) age.textContent = B.busy ? 'Actualizando...' : st.pricesAt ? 'Precios ' + ago(st.pricesAt) : 'Actualizar precios';
   const rb = $('#refreshBtn');
-  if (rb) { rb.disabled = B.busy; rb.title = B.mcp ? 'Actualizar precios desde Yahoo Finance' : 'Precios online: solo en la app de escritorio de Claude'; }
+  if (rb) { rb.disabled = B.busy; rb.title = online() ? 'Actualizar precios desde Yahoo Finance' : STANDALONE ? 'Configura tu servidor de precios en Ajustes' : 'Precios online: solo en la app de escritorio de Claude'; }
   setSync();
 }
 function renderBanner() {
@@ -806,8 +870,8 @@ function renderBanner() {
   else if (S.mode === 'local' && !lsGet('cartera.bannerOk')) h = '<div class="banner-in"><span>Tus datos se guardan en este dispositivo. Haz una copia de seguridad de vez en cuando desde Ajustes.</span><button class="btn sm ghost" data-action="banner-ok">Entendido</button></div>';
   else if (S.mode === 'db' || S.mode === 'cache' || S.mode === 'local') {
     const M = model();
-    if (M.pendN) h = '<div class="banner-in warn"><span>' + (M.pendN === 1 ? 'Hay 1 aportación' : 'Hay ' + M.pendN + ' aportaciones') + ' sin precio todavía. Se valoran a coste hasta tenerlo.</span>' + (B.mcp ? '<button class="btn sm ghost" data-action="fill-all">Buscar precios</button>' : '') + '</div>';
-    else if (M.missingFx.length) h = '<div class="banner-in warn"><span>Falta el tipo de cambio ' + esc(M.missingFx.join(', ')) + ' a euros. ' + (STANDALONE ? 'Pon el precio en euros en la ficha del activo.' : 'Actualiza precios desde el escritorio o pon el precio en euros en la ficha del activo.') + '</span></div>';
+    if (M.pendN) h = '<div class="banner-in warn"><span>' + (M.pendN === 1 ? 'Hay 1 aportación' : 'Hay ' + M.pendN + ' aportaciones') + ' sin precio todavía. Se valoran a coste hasta tenerlo.</span>' + (online() ? '<button class="btn sm ghost" data-action="fill-all">Buscar precios</button>' : '') + '</div>';
+    else if (M.missingFx.length) h = '<div class="banner-in warn"><span>Falta el tipo de cambio ' + esc(M.missingFx.join(', ')) + ' a euros. ' + (STANDALONE && !B.proxy ? 'Pon el precio en euros en la ficha del activo o configura tu servidor de precios en Ajustes.' : STANDALONE ? 'Actualiza precios o pon el precio en euros en la ficha del activo.' : 'Actualiza precios desde el escritorio o pon el precio en euros en la ficha del activo.') + '</span></div>';
   }
   b.innerHTML = h ? '<div class="banner">' + h + '</div>' : '';
 }
@@ -820,7 +884,7 @@ function emptyState() {
     '<p>Apunta acciones, ETFs, fondos y cripto con su precio y fecha de compra, añade tus cuentas remuneradas con su TAE y deja que los planes mensuales se apunten solos.</p>' +
     '<div class="btns"><button class="btn primary" data-action="add-inv">Añadir inversión</button><button class="btn ghost" data-action="add-cash">Añadir liquidez</button><button class="btn ghost" data-action="demo-on">Ver un ejemplo</button></div>' +
     '<div class="feat">' +
-    (STANDALONE ? '<div><b>Funciona sin conexión</b><span>Instalada en la pantalla de inicio abre al momento, con o sin internet.</span></div>' : '<div><b>Precios online</b><span>Busca por nombre, ticker o ISIN y trae la cotización de Yahoo Finance.</span></div>') +
+    (STANDALONE && !B.proxy ? '<div><b>Funciona sin conexión</b><span>Instalada en la pantalla de inicio abre al momento, con o sin internet.</span></div>' : '<div><b>Precios online</b><span>Busca por nombre, ticker o ISIN y trae la cotización de Yahoo Finance.</span></div>') +
     '<div><b>Planes automáticos</b><span>Elige importe y días del mes. Cada aportación se apunta sola.</span></div>' +
     '<div><b>Liquidez con intereses</b><span>Saldo, TAE e intereses generados día a día.</span></div>' +
     '</div></section>';
@@ -1259,11 +1323,11 @@ function shAdd() {
     '<div>' + (t === 'inv' ? addInvPane() : t === 'cash' ? addCashPane() : planFormHTML({ embedded: true })) + '</div>';
 }
 function addInvPane() {
-  const online = B.mcp && !S.demo;
+  const on = online();
   return '<form class="form" data-form="search" style="margin-top:18px" novalidate>' +
     '<div class="fld"><label class="lbl" for="f-q">Buscar acción, ETF, fondo o cripto</label>' +
-    '<div class="inline"><input class="field" id="f-q" name="q" value="' + esc(AD.q) + '" placeholder="Nombre, ticker o ISIN" autocomplete="off" autofocus enterkeyhint="search"><button class="btn primary" type="submit" style="height:46px">' + (online ? 'Buscar online' : 'Buscar') + '</button></div>' +
-    '<p class="help">' + (online ? 'Busca en Yahoo Finance con el navegador de Claude. La primera vez te pedirá permiso.' : B.checked ? (STANDALONE ? 'Esta versión no busca online. Elige una sugerencia o añádelo a mano con su precio.' : 'Aquí no hay acceso a precios online. Elige una sugerencia o añádelo a mano; desde el escritorio se actualizará.') : 'Comprobando acceso a precios online...') + '</p></div>' +
+    '<div class="inline"><input class="field" id="f-q" name="q" value="' + esc(AD.q) + '" placeholder="Nombre, ticker o ISIN" autocomplete="off" autofocus enterkeyhint="search"><button class="btn primary" type="submit" style="height:46px">' + (on ? 'Buscar online' : 'Buscar') + '</button></div>' +
+    '<p class="help">' + esc(searchHelp()) + '</p></div>' +
     '</form>' +
     '<div id="results">' + resultsHTML() + '</div>' +
     '<p style="margin-top:14px"><button class="linkbtn" data-action="manual-asset">¿No aparece? Añadir a mano</button></p>';
@@ -1284,7 +1348,7 @@ function resultsHTML() {
   else if (AD.err) h += '<div class="res-group"><h4>Yahoo Finance</h4><p class="help err">' + esc(AD.err) + '</p></div>';
   else if (AD.online) h += AD.online.length ? group('Yahoo Finance', AD.online.map((o, i) => resRow('online', i, o.name, [o.symbol, o.exch].filter(Boolean).join(' · '), o.type))) : '<div class="res-group"><h4>Yahoo Finance</h4><p class="empty-small">Sin resultados. Prueba con el ticker o el ISIN.</p></div>';
   if (AD.cat.length) h += group(q ? 'Sugerencias' : 'Populares', AD.cat.map((c, i) => resRow('cat', i, c.name, [c.symbol || c.isin, c.exch].filter(Boolean).join(' · '), c.type)));
-  if (!h) h = '<p class="empty-small">Nada en las sugerencias. ' + (B.mcp ? 'Pulsa Buscar online.' : 'Añádelo a mano.') + '</p>';
+  if (!h) h = '<p class="empty-small">Nada en las sugerencias. ' + (online() ? 'Pulsa Buscar online.' : 'Añádelo a mano.') + '</p>';
   return h;
 }
 function paintResults() { const r = $('#results'); if (r) r.innerHTML = resultsHTML(); }
@@ -1329,7 +1393,7 @@ function cashMoveForm(cashId, accs) {
 function txAsset(ctx) { return ctx.assetId ? D().get(ctx.assetId) : ctx.draft; }
 function priceHelp(a, date, pref, tx) {
   if (tx) return 'Precio guardado en la operación.';
-  const canFetch = B.mcp && !S.demo && a.symbol;
+  const canFetch = online() && a.symbol;
   const fetchBtn = canFetch ? ' <button type="button" class="linkbtn" data-action="date-price">Traer el precio de esa fecha</button>' : '';
   if (pref && pref.exact) return 'Cierre del ' + datef(pref.from) + ': ' + pxf(pref.price) + '. Cámbialo si pagaste otro precio.';
   if (pref) return 'Precio actual: ' + pxf(pref.price) + '. Si compraste otro día, escribe tu precio.' + (validDate(date) && toEd(date) < todayEd() - 2 ? fetchBtn : '');
@@ -1398,7 +1462,7 @@ function shAsset(id) {
   const plans = all('plan').filter(x => x.targetId === id);
   const txs = txsOf(a).reverse();
   const dayPct = (a.price > 0 && a.prev > 0) ? a.price / a.prev - 1 : null;
-  const canFetch = B.mcp && !S.demo && a.symbol;
+  const canFetch = online() && a.symbol;
   const q = encodeURIComponent((a.isin || a.symbol || a.name) + ' cotización');
   return head(a.name) +
     '<div class="asset-head"><span class="badge" style="--k:var(' + t.k + ')">' + esc(badgeTxt(a)) + '</span><div style="min-width:0"><p class="label" style="margin:0">' + esc(a.symbol || 'Sin ticker') + '</p><p class="big2 money">' + pxf(priceEUR(a)) + '</p></div></div>' +
@@ -1509,16 +1573,31 @@ function modeLabel() {
   if (S.mode === 'local') return STANDALONE ? 'En este dispositivo (sin conexión con Claude)' : 'Solo en este navegador';
   return 'Conectando';
 }
+function proxySection() {
+  if (!STANDALONE) return '';
+  const own = lsGet(LS_PROXY);
+  const status = B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') + (own && own.url ? ', guardado en este dispositivo.' : ', configurado en el repositorio.') : 'Sin servidor: los precios se ponen a mano.';
+  return '<section class="sh-sec"><h3>Precios online</h3>' +
+    '<p class="help" style="margin-bottom:12px">Esta versión trae las cotizaciones de Yahoo Finance a través de un servidor tuyo, gratuito, en Cloudflare Workers. Los pasos están en el README del repositorio, en "Precios online en la versión web".</p>' +
+    '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor de precios</label>' +
+    '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://cartera-precios.tu-cuenta.workers.dev"></div>' +
+    '<p class="help" id="pxMsg">' + esc(status) + '</p>' +
+    '<div class="card-actions"><button class="btn primary sm" type="submit">Guardar y probar</button>' +
+    (B.proxy ? '<button type="button" class="btn ghost sm" data-action="proxy-clear">Quitar</button>' : '') +
+    (B.cfgProxy && own ? '<button type="button" class="btn ghost sm" data-action="proxy-default">Usar el del repositorio</button>' : '') +
+    '</div></form></section>';
+}
 function shSettings() {
   const docs = Array.from(S.docs.values());
   const st = settings();
   return head('Ajustes') +
     '<section class="sh-sec" style="margin-top:8px"><h3>Estado</h3><dl class="kv">' +
       '<dt>Datos</dt><dd>' + modeLabel() + '</dd>' +
-      '<dt>Precios online</dt><dd>' + (B.mcp ? 'Disponibles con el navegador de Claude' : STANDALONE ? 'No incluidos en esta versión' : B.checked ? 'No disponibles en este dispositivo' : 'Comprobando') + '</dd>' +
+      '<dt>Precios online</dt><dd>' + (B.mcp ? 'Disponibles con el navegador de Claude' : STANDALONE ? (B.proxy ? 'Activos con tu servidor de precios' : 'Sin servidor configurado') : B.checked ? 'No disponibles en este dispositivo' : 'Comprobando') + '</dd>' +
       '<dt>Últimos precios</dt><dd>' + (st.pricesAt ? ago(st.pricesAt) : 'Nunca') + '</dd>' +
       '<dt>Registros</dt><dd>' + docs.length + '</dd>' +
     '</dl></section>' +
+    proxySection() +
     '<section class="sh-sec"><h3>Copia de seguridad</h3><p class="help" style="margin-bottom:10px">Copia este texto y guárdalo donde quieras. Para restaurar, pégalo en el cuadro de abajo.</p>' +
       '<textarea class="field" id="exportTxt" readonly rows="4" aria-label="Copia de seguridad">' + esc(JSON.stringify({ app: 'cartera', v: 1, at: new Date().toISOString(), docs })) + '</textarea>' +
       '<div class="card-actions" style="margin-top:10px"><button class="btn ghost sm" data-action="copy-export">Copiar</button></div></section>' +
@@ -1549,6 +1628,8 @@ ACT['add-plan'] = el => {
 ACT['add-tab'] = el => { AD.tab = el.dataset.k; if (SH.stack[0] && SH.stack[0].fn === shAdd) { SH.stack = [SH.stack[0]]; paintSheet(true); } else openAdd(AD.tab); };
 ACT['cash-mode'] = el => { AD.cashMode = el.dataset.m; paintSheet(true); };
 ACT['sheet-close'] = () => closeSheet();
+ACT['proxy-clear'] = () => { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; onlineUI(); toast('Servidor de precios quitado'); };
+ACT['proxy-default'] = () => { try { localStorage.removeItem(LS_PROXY); } catch (e) { /* sin almacenamiento */ } B.proxy = B.cfgProxy; onlineUI(); toast('Usando el servidor del repositorio'); autoRefresh(); };
 ACT['banner-ok'] = () => { lsSet('cartera.bannerOk', 1); renderBanner(); };
 ACT['sheet-back'] = () => sheetBack();
 ACT.refresh = () => refreshPrices();
@@ -1575,7 +1656,7 @@ ACT.pick = async el => {
   const existing = item.symbol && all('asset').find(a => a.symbol && a.symbol === item.symbol);
   if (existing) { openSheet({ fn: shTx, args: [{ assetId: existing.id }], title: 'Operación' }, true); return; }
   const draft = { name: item.name, symbol: item.symbol || '', type: item.type, currency: item.currency || null, isin: item.isin || '', exch: item.exch || '' };
-  if (B.mcp && !S.demo && (draft.symbol || draft.isin)) {
+  if (online() && (draft.symbol || draft.isin)) {
     openSheet({ fn: shLoading, args: ['Trayendo la cotización de Yahoo Finance...'] }, true);
     try {
       if (!draft.symbol && draft.isin) { const r = await ySearch(draft.isin); if (r[0]) { draft.symbol = r[0].symbol; if (!draft.type) draft.type = r[0].type; } }
@@ -1704,10 +1785,36 @@ ACT.wipe = el => {
 };
 
 /* ---------- Formularios */
+FORM.proxy = async f => {
+  const raw = f.elements.url.value.trim();
+  const msg = f.querySelector('#pxMsg');
+  const say = (t, err) => { if (msg) { msg.textContent = t; msg.classList.toggle('err', !!err); } };
+  if (!raw) { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; onlineUI(); toast('Servidor de precios quitado'); return; }
+  const url = cleanProxy(raw);
+  if (!url) { say('La dirección tiene que empezar por https://', true); return; }
+  const btn = f.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Probando...'; }
+  const prev = B.proxy;
+  B.proxy = url;
+  try {
+    const j = await proxyJSON(YH + '/v8/finance/spark?symbols=EURUSD%3DX&range=5d&interval=1d');
+    if (!j || typeof j !== 'object' || !Object.keys(j).length) throw new Error('respuesta vacía');
+    lsSet(LS_PROXY, { url });
+    diag('servidor de precios conectado');
+    toast('Servidor de precios conectado');
+    onlineUI();
+    if (all('asset').some(a => a.symbol)) refreshPrices();
+  } catch (e) {
+    B.proxy = prev;
+    diag('prueba del servidor falló: ' + (e && (e.code || '')) + ' ' + (e && e.message));
+    say(browserErr(e), true);
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = 'Guardar y probar'; }
+  }
+};
 FORM.search = async f => {
   const q = f.elements.q.value.trim(); AD.q = q;
   if (!q) { paintResults(); return; }
-  if (!B.mcp || S.demo) { paintResults(); if (!S.demo && B.checked && !STANDALONE) toast('La búsqueda online funciona en la app de escritorio de Claude.'); return; }
+  if (!online()) { paintResults(); if (!S.demo && B.checked) toast(STANDALONE ? 'Configura tu servidor de precios en Ajustes para buscar online.' : 'La búsqueda online funciona en la app de escritorio de Claude.'); return; }
   AD.searching = true; AD.err = ''; AD.lastQ = q; paintResults();
   try { AD.online = await ySearch(q); }
   catch (e) { AD.err = browserErr(e); AD.online = null; diag('búsqueda: ' + (e && (e.code || e.message))); }
@@ -1929,7 +2036,7 @@ function boot() {
   }, 10000);
   setInterval(() => { renderTop(); }, 60000);
   setInterval(() => { if (S.mode === 'db' || S.mode === 'local') runPlans(); }, 30 * 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && (S.mode === 'db' || S.mode === 'local')) { runPlans(); renderTop(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && (S.mode === 'db' || S.mode === 'local')) { runPlans(); renderTop(); autoRefresh(); } });
 }
 window.__cartera = { calcPos, cashCalc, planDates, history, priceOn, runPlans, S, D, model };
 boot();
