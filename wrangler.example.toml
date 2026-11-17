@@ -1,4 +1,5 @@
 # Plantilla para desplegar el worker de brokers por línea de comandos (opcional).
+
 # 1) Cópiala a wrangler.toml y cambia el nombre por el de TU Worker.
 # 2) En el panel de Cloudflare: Settings → Variables → pon ALLOWED_ORIGINS
 #    con tus orígenes y crea los SECRETOS T212_KEY, T212_SECRET y ACCESS_KEY.
