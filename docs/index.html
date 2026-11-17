@@ -1030,7 +1030,7 @@ function upcoming(days) {
    de tu servidor en Cloudflare. Trading 212 se guarda en local
    (localStorage) y se reutiliza sin conexión.
    ========================================================= */
-const B = { proxy: '', cfgProxy: '', checked: false };
+const B = { proxy: '', cfgProxy: '', accessKey: '', checked: false };
 const LS_PROXY = 'cartera.broker.v1';
 const LS_T212 = 'cartera.t212.v1';
 const LS_TR = 'cartera.tr.v1';
@@ -1049,6 +1049,7 @@ async function initBrokers() {
   B.cfgProxy = cleanProxy(cfg && cfg.brokerProxy);
   const own = lsGet(LS_PROXY);
   B.proxy = own && typeof own.url === 'string' ? cleanProxy(own.url) : B.cfgProxy;
+  B.accessKey = own && typeof own.key === 'string' ? own.key : '';
   B.checked = true;
   if (!B.proxy) discardT212(); // sin URL guardada, los datos del broker se quedan fuera
   diag('brokers: ' + (B.proxy ? 'servidor ' + B.proxy.replace(/^https?:\/\//, '') : 'sin servidor configurado'));
@@ -1062,7 +1063,9 @@ async function brokerFetch(path, opts) {
   const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 25000);
   let r, txt;
   try {
-    r = await fetch(B.proxy + path, Object.assign({ signal: ctrl ? ctrl.signal : undefined }, opts.init || {}));
+    const headers = (opts.init && opts.init.headers) ? Object.assign({}, opts.init.headers) : {};
+    if (B.accessKey) headers['X-Access'] = B.accessKey;
+    r = await fetch(B.proxy + path, Object.assign({ signal: ctrl ? ctrl.signal : undefined }, opts.init || {}, { headers }));
     txt = await r.text();
   } catch (e) {
     const er = new Error('sin respuesta'); er.code = 'broker_unreachable'; throw er;
@@ -1079,6 +1082,7 @@ function brokerErr(e) {
   const c = String(e && e.code || '');
   if (c === 'broker_unreachable') return 'El servidor de brokers no responde. Revisa la dirección en Ajustes o tu conexión.';
   if (c === 't212_unconfigured') return 'Trading 212 no está configurado. Revisa T212_KEY y T212_SECRET en Cloudflare.';
+  if (c === 'access_denied') return 'Clave de acceso incorrecta. Revísala en Ajustes (Servidor de brokers).';
   if (e && e.status === 401) return 'Las credenciales no son válidas. Revisa la configuración en Cloudflare.';
   if (e && e.status === 429) return 'Demasiadas consultas. Prueba en un minuto.';
   return 'No pude leer el broker' + (e && e.message ? ': ' + e.message : '.');
@@ -2337,6 +2341,8 @@ function brokerSection() {
   return '<section class="sh-sec"><h3>Servidor de brokers</h3>' +
     '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor</label>' +
     '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://cartera-brokers.tu-cuenta.workers.dev"></div>' +
+    '<div class="fld" style="margin-top:12px"><label class="lbl" for="px-key">Clave de acceso</label>' +
+    '<input class="field" id="px-key" name="key" type="password" autocomplete="off" spellcheck="false" value="' + esc(B.accessKey) + '" placeholder="Solo si tu worker la pide (secreto ACCESS_KEY)"></div>' +
     '<p class="help" id="pxMsg">' + esc(status) + '</p>' +
     '<button class="btn primary sm" id="proxyBtn" type="submit">' + (B.proxy ? 'Desconectar' : 'Conectar') + '</button>' +
     '</form></section>';
@@ -2715,20 +2721,21 @@ CHANGE.trurl = (f, t) => {
 };
 FORM.proxy = async f => {
   const raw = f.elements.url.value.trim();
+  const key = (f.elements.key ? f.elements.key.value : '').trim();
   const msg = f.querySelector('#pxMsg');
   const say = (t, err) => { if (msg) { msg.textContent = t; msg.classList.toggle('err', !!err); } };
   const btn = f.querySelector('#proxyBtn');
   if (btn) btn.disabled = true;
   // Pulsó Desconectar (la dirección sigue guardada en el campo).
   if (B.proxy && cleanProxy(raw) === B.proxy) {
-    lsSet(LS_PROXY, { url: '' }); B.proxy = ''; discardT212(); brokersWiped();
+    lsSet(LS_PROXY, { url: '', key: B.accessKey }); B.proxy = ''; discardT212(); brokersWiped();
     if (btn) { btn.disabled = false; btn.textContent = 'Conectar'; }
     say('Sin servidor configurado. Pega la dirección y pulsa Conectar.');
     toast('Servidor desconectado y datos de Trading 212 borrados de este dispositivo');
     renderBrokers(); return;
   }
   if (!raw) {
-    lsSet(LS_PROXY, { url: '' }); B.proxy = ''; discardT212(); brokersWiped();
+    lsSet(LS_PROXY, { url: '', key: B.accessKey }); B.proxy = ''; discardT212(); brokersWiped();
     if (btn) { btn.disabled = false; btn.textContent = 'Conectar'; }
     say('Sin servidor configurado. Pega la dirección y pulsa Conectar.');
     toast('Servidor quitado y datos de Trading 212 borrados de este dispositivo');
@@ -2738,10 +2745,11 @@ FORM.proxy = async f => {
   if (!url) { say('La dirección tiene que empezar por https://', true); if (btn) btn.disabled = false; return; }
   const prev = B.proxy;
   B.proxy = url;
+  B.accessKey = key;
   try {
     const j = await brokerFetch('/');
     if (!j || j.servicio !== 'cartera-brokers') throw new Error('no es el servidor de brokers');
-    lsSet(LS_PROXY, { url });
+    lsSet(LS_PROXY, { url, key });
     diag('servidor de brokers conectado');
     say('Conectado. Cargando tu cuenta de Trading 212...');
     if (btn) { btn.disabled = false; btn.textContent = 'Desconectar'; }
@@ -2756,6 +2764,8 @@ FORM.proxy = async f => {
   }
 };
 CHANGE.proxy = (f, t) => {
+  // La clave de acceso se guarda sola al escribirla (no conecta/desconecta).
+  if (t.name === 'key') { B.accessKey = t.value.trim(); lsSet(LS_PROXY, { url: B.proxy, key: B.accessKey }); return; }
   if (t.name !== 'url') return;
   const b = $('#proxyBtn');
   // Vaciar la dirección desconecta (y borra los datos del broker de este dispositivo).

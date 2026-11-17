@@ -12,6 +12,11 @@
    T212_KEY (API Key) y T212_SECRET (API Secret). Configúralas en el panel de
    Cloudflare (Settings → Variables → Secrets). La API Key jamás se envía al navegador.
 
+   Clave de acceso opcional: si defines el secreto ACCESS_KEY, las rutas /t212/*
+   exigen la cabecera X-Access con ese valor (la app la pide en Ajustes →
+   "Clave de acceso"). Evita que cualquiera con la URL del Worker lea tu cuenta
+   sorteando el control de origen con curl. El token nunca se reenvía a Trading 212.
+
    Trade Republic NO se sirve desde aquí: usa un servidor local en tu PC
    (carpeta tr-server/) porque requiere un flujo QR con WebSocket y WAF (Puppeteer)
    que un Worker no puede hacer. Ver README. */
@@ -68,6 +73,13 @@ async function t212(url, env, cors) {
   }
 }
 
+/* Clave de acceso (secreto ACCESS_KEY). Si no está definida, no se exige. */
+function accessDenied(request, env) {
+  const key = env && env.ACCESS_KEY;
+  if (!key) return false;
+  return request.headers.get('X-Access') !== key;
+}
+
 /* =========================================================
    Enrutador
    ========================================================= */
@@ -80,7 +92,7 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': any ? '*' : (origin && origins.includes(origin) ? origin : origins[0]),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Accept, Content-Type',
+      'Access-Control-Allow-Headers': 'Accept, Content-Type, X-Access',
       'Access-Control-Max-Age': '86400',
       'Vary': 'Origin'
     };
@@ -93,6 +105,7 @@ export default {
     // Trading 212 (solo lectura)
     if (url.pathname.startsWith('/t212/')) {
       if (request.method !== 'GET') return reply({ error: 'Solo se admite GET' }, 405, cors);
+      if (accessDenied(request, env)) return reply({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401, cors);
       return t212(url, env, cors);
     }
 

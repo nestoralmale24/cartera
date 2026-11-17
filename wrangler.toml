@@ -1,6 +1,7 @@
 # Cartera: servidor de brokers para Trading 212 (Cloudflare Workers).
 # Despliegue: npx wrangler deploy (desde la raíz) o Workers Builds desde GitHub.
-name = "cartera-brokers"
+# wrangler.toml
+name = 'cartera-x7k2'
 main = "worker/precios.js"
 compatibility_date = "2025-01-01"
 
@@ -12,6 +13,8 @@ ALLOWED_ORIGINS = "https://nestoralmale24.github.io,http://localhost:3000,http:/
 # Trading 212: las claves NO van aquí. T212_KEY y T212_SECRET se crean como
 # SECRETOS en el panel de Cloudflare (Settings → Variables → Secrets);
 # si las declararas aquí como [vars], podrían pisarlas en cada deploy.
+# Igual con ACCESS_KEY (clave de acceso opcional): si la defines como secreto,
+# la app debe enviarla en la cabecera X-Access (campo "Clave de acceso" en Ajustes).
 
 [observability]
 enabled = true

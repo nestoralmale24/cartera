@@ -110,8 +110,8 @@ async function testWebBrokers() {
     url = String(url); calls.push(url);
     if (url.endsWith('config.json')) return resp({ brokerProxy: 'https://brokers.test' });
     if (url === 'https://brokers.test/') return resp({ ok: true, servicio: 'cartera-brokers' });
-    if (url === 'https://brokers.test/t212/account') return resp(t212Account);
-    if (url === 'https://brokers.test/t212/positions') return resp(t212Positions);
+    if (url === 'https://brokers.test/t212/account') return (init && init.headers && init.headers['X-Access'] === 'topsecret') ? resp(t212Account) : resp({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401);
+    if (url === 'https://brokers.test/t212/positions') return (init && init.headers && init.headers['X-Access'] === 'topsecret') ? resp(t212Positions) : resp({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401);
     // Trade Republic usa un servidor local aparte.
     if (url === 'http://localhost:8788/login') return resp({ ok: true, status: 'qr' });
     if (url === 'http://localhost:8788/qr') return resp({ ok: true, status: 'pending', qrPayload: 'https://tr.test/qr' });
@@ -146,10 +146,17 @@ async function testWebBrokers() {
   ok('Ajustes ya no tiene copia/restaurar', !d.querySelector('#exportTxt') && !d.querySelector('#importTxt'));
   ok('Ajustes ya no tiene diagnóstico', !d.querySelector('#diagTxt'));
   ok('el estado global dice No conectado aún', d.querySelector('#brokerState').textContent.trim() === 'No conectado');
-  // Trading 212
+  // Trading 212: sin clave de acceso, el worker la rechaza.
+  d.querySelector('[data-action="t212-load"]').click(); await sleep(120);
+  ok('sin clave de acceso el broker la exige', /Clave de acceso/.test(d.querySelector('#t212Body').textContent), d.querySelector('#t212Body').textContent.slice(0, 160));
+  // La clave se guarda al escribirla y la siguiente lectura ya conecta.
+  const pxKey = d.querySelector('#px-key');
+  pxKey.value = 'topsecret';
+  fire(w, pxKey, 'change'); await sleep(40);
   d.querySelector('[data-action="t212-load"]').click(); await sleep(120);
   const tbody = d.querySelector('#t212Body');
   ok('muestra la cuenta de Trading 212', /Disponible/.test(tbody.textContent) && /6.584,56/.test(tbody.textContent), tbody.textContent);
+  ok('guarda la clave de acceso en el dispositivo', JSON.parse(w.localStorage.getItem('cartera.broker.v1')).key === 'topsecret');
   ok('muestra posiciones de Trading 212', /Apple Inc/.test(tbody.textContent));
   ok('guarda Trading 212 en local', JSON.parse(w.localStorage.getItem('cartera.t212.v1')).account.cash.availableToTrade === 1000);
   ok('el estado global pasa a Conectado con Trading 212', d.querySelector('#brokerState').textContent.trim() === 'Conectado');
@@ -288,6 +295,16 @@ async function testWorker() {
     ok('usa Basic Auth', /^Basic /.test(authHeader));
     r = await worker.fetch(new Request('https://w.test/v8/finance/chart/AAPL', { method: 'POST', headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
     ok('ya no acepta rutas de Yahoo', r.status === 404);
+    // Clave de acceso (secreto ACCESS_KEY): exigida en /t212/* si está definida.
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN, ACCESS_KEY: 'secreto' });
+    ok('con ACCESS_KEY exige la cabecera X-Access', r.status === 401 && JSON.parse(await r.text()).code === 'access_denied');
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN, 'X-Access': 'otra' } }), { ALLOWED_ORIGINS: ORIGIN, ACCESS_KEY: 'secreto' });
+    ok('rechaza una clave incorrecta', r.status === 401);
+    seen.length = 0;
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN, 'X-Access': 'secreto' } }), { ALLOWED_ORIGINS: ORIGIN, ACCESS_KEY: 'secreto', T212_KEY: 'k', T212_SECRET: 's' });
+    ok('con la clave correcta reenvía a Trading 212', r.status === 200 && seen.some(x => x.url.includes('account/summary')));
+    r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN, ACCESS_KEY: 'secreto' });
+    ok('la raíz del worker sigue abierta sin clave (salud)', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
     r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: 'https://otra-web.example' } }), { ALLOWED_ORIGINS: ORIGIN, T212_KEY: 'k', T212_SECRET: 's' });
     ok('rechaza otras webs', r.status === 403);
     r = await worker.fetch(new Request('https://w.test/tr/login', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });

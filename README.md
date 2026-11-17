@@ -102,12 +102,13 @@ Los datos se guardan en el dispositivo y se reutilizan sin conexión. Si quitas 
      `https://TU-USUARIO.github.io,http://localhost:3000,http://127.0.0.1:3000`
      Sin esta variable solo funciona desde tu propio PC en desarrollo. **Ojo**: si despliegas por línea de comandos (`wrangler deploy`) o con Workers Builds, los orígenes se leen del `wrangler.toml` de la raíz (edítalo ahí), porque el despliegue sobrescribe las variables del panel.
    - En **Secrets**, añade `T212_KEY` y `T212_SECRET` con tu API Key y tu API Secret (se generan en Trading 212: app/web → Ajustes → API Beta; solo cuentas **Invest** e **ISA**, no CFD ni SIPP).
+   - (Recomendado) En **Secrets**, añade también `ACCESS_KEY` con una frase larga y aleatoria (p. ej. la que te genere tu gestor de contraseñas). La app te la pedirá en su campo **Clave de acceso** y sin ella el Worker responderá **401**: aunque alguien averigüe la URL de tu Worker, no podrá leer tu cuenta.
 5. Copia la dirección del Worker, del tipo `https://cartera-brokers.TU-CUENTA.workers.dev`. Si la abres en el navegador debe responder `{"ok":true,"servicio":"cartera-brokers"}`.
 6. Dile a la app dónde está el Worker:
    - Para todos tus dispositivos: copia `config.example.json` a `config.json`, pon tu dirección, ejecuta `npm run build` y haz push; o
-   - Solo para este dispositivo: en la app, Ajustes → Servidor de brokers → pega la dirección → **Guardar y probar**.
+   - Solo para este dispositivo: en la app, Ajustes → Servidor de brokers → pega la dirección (y tu **Clave de acceso**, si definiste `ACCESS_KEY`) → **Conectar**.
 
-**Seguridad.** Las claves viven como *secretos* de Cloudflare (cifrados y no visibles) y el navegador nunca las recibe: solo pide `/t212/account` y `/t212/positions`, y el Worker es quien añade la autenticación y reenvía a Trading 212. Trata la dirección de tu Worker como **privada**: quien la conozca y use un origen permitido puede leer tu cuenta (solo lectura).
+**Seguridad.** Las claves viven como *secretos* de Cloudflare (cifrados y no visibles) y el navegador nunca las recibe: solo pide `/t212/account` y `/t212/positions`, y el Worker es quien añade la autenticación y reenvía a Trading 212. Trata la dirección de tu Worker como **privada**: quien la conozca y use un origen permitido puede leer tu cuenta (solo lectura). Con el secreto `ACCESS_KEY` además, la app envía la cabecera `X-Access` en cada petición y el Worker la exige; esa clave tampoco sale de tu dispositivo ni se reenvía a Trading 212. Si tu URL ya se ha filtrado (p. ej. está en el historial de un repositorio público), lo más seguro es **rotar el Worker**: créate uno nuevo con otro nombre, borra el viejo y actualiza la URL en tus dispositivos.
 
 ### 2. Trade Republic (no oficial, servidor local)
 
