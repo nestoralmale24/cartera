@@ -162,3 +162,7 @@ Una colección por usuario con un documento por entidad:
 Las aportaciones de un plan usan un identificador fijo (`pl_<plan>_<fecha>`), así que aunque se abra a la vez en dos dispositivos no se duplican.
 
 Los intereses se calculan capitalizando a diario con la TAE vigente en cada fecha. Es una estimación: cada banco liquida a su manera.
+
+## Licencia
+
+MIT (ver `LICENSE`). Incluye la librería `trapi` (MIT) como dependencia del servidor local de Trade Republic.
