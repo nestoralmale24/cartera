@@ -417,6 +417,8 @@ function history(R) {
   for (const a of assets) for (const t of a.txs || []) if (validDate(t.date)) first = Math.min(first, toEd(t.date));
   const cc = accounts.map(c => cashCalc(c));
   for (const r of cc) if (r.ser) first = Math.min(first, r.start);
+  const brok = trAssets(), brok212 = t212Assets();
+  for (const a of brok) if (a.hist && a.hist.t && a.hist.t.length) first = Math.min(first, a.hist.t[0]);
   const start = Math.max(end - R, first);
   const n = end - start + 1;
   if (n < 2) return null;
@@ -441,6 +443,31 @@ function history(R) {
     if (!r.ser) continue;
     for (let i = 0; i < n; i++) { const k = start + i - r.start; if (k >= 0 && k < r.ser.length) { val[i] += r.ser[k]; con[i] += r.pser[k]; } }
   }
+  // Posiciones de Trade Republic: la curva usa sus velas de precio
+  // (el último día se valora al precio actual del broker).
+  for (const a of brok) {
+    const qty = a.vQty || 0, cost = a.vCost || 0;
+    if (!(qty > 0)) continue;
+    const h = a.hist && a.hist.t && a.hist.t.length ? a.hist : null;
+    if (!h) { if (cost > 0) for (let i = 0; i < n; i++) { val[i] += cost; con[i] += cost; } continue; }
+    for (let i = 0; i < n; i++) {
+      const d = start + i;
+      const j = lastLE(h.t, d);
+      if (j < 0) continue; // antes de la primera vela no aporta
+      val[i] += (i === n - 1 && a.price > 0) ? qty * a.price : qty * h.c[j];
+      con[i] += cost;
+    }
+  }
+  // Trading 212 no publica histórico de precios en su API: se valora a coste.
+  for (const a of brok212) {
+    const cost = a.vCost || 0;
+    if (!(cost > 0)) continue;
+    for (let i = 0; i < n; i++) { val[i] += cost; con[i] += cost; }
+  }
+  // Efectivo de los brokers: sin histórico, se suma plano a Patrimonio y Aportado.
+  const tc = (T.account && T.account.cash) || {};
+  const brokCash = (+tc.availableToTrade || 0) + (+tc.inPies || 0) + (+tc.reservedForOrders || 0) + (TR.cash || []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  if (brokCash > 0) for (let i = 0; i < n; i++) { val[i] += brokCash; con[i] += brokCash; }
   return { start, n, val, con };
 }
 
@@ -663,7 +690,7 @@ async function loadT212(silent) {
 /* ---------- Trade Republic (servidor local) ---------- */
 const TR = { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, at: null, localUrl: '' };
 const LS_TR_URL = 'cartera.tr.url.v1';
-const AR = { t212: false, tr: false };
+const AR = { t212: false, tr: false, trh: false };
 function trLocal() { return cleanProxyLocal(TR.localUrl); }
 function cleanProxyLocal(u) {
   u = String(u || '').trim().replace(/\/+$/, '');
@@ -772,6 +799,7 @@ async function trFetchPortfolio(silent) {
     await trFillCryptoPrices(j.positions);
     TR.positions = j.positions || []; TR.cash = j.cash || null; TR.plans = j.plans || null; TR.at = Date.now(); TR.state = 'ok'; TR.err = '';
     trCacheSave();
+    trSyncHistories(); // velas para las gráficas (en segundo plano, con su propia caché)
     if (!silent) toast('Trade Republic actualizado y guardado en este dispositivo');
     return j;
   } catch (e) {
@@ -794,6 +822,62 @@ async function trLoadSilent() {
   if (!(TR.state === 'ok' || TR.state === 'cached')) return;
   await trFetchPortfolio(true);
   renderBrokers();
+}
+
+/* ---------- Histórico de precios de Trade Republic (alimenta las gráficas) ---------- */
+const LS_TRH = 'cartera.tr.hist.v1';
+const TRH = { by: {} }; // { [isin]: { at, miss?, t:[días], c:[cierre] } }
+const TRH_TTL = 86400000;      // el histórico se re-busca una vez al día
+const TRH_MISS_TTL = 3600000;  // si TR no dio velas, se reintenta en 1 hora
+function trHistCacheLoad() {
+  const c = lsGet(LS_TRH);
+  if (c && c.by && typeof c.by === 'object') TRH.by = c.by;
+}
+function trHistCacheSave() { lsSet(LS_TRH, { by: TRH.by }); }
+/* Histórico de criptos: Trade Republic no lo sirve por WebSocket; CoinGecko sí. */
+async function trCryptoHist(sym) {
+  const id = CG_MAP[sym] || String(sym).toLowerCase();
+  try {
+    const r = await fetch('https://api.coingecko.com/api/v3/coins/' + encodeURIComponent(id) + '/market_chart?vs_currency=eur&days=365&interval=daily');
+    if (!r.ok) return null;
+    const j = await r.json();
+    const px = j && j.prices;
+    if (!Array.isArray(px) || px.length < 2) return null;
+    const t = [], c = [];
+    for (const p of px) { if (!Array.isArray(p) || typeof p[1] !== 'number') continue; t.push(Math.floor(Number(p[0]) / DAY)); c.push(p[1]); }
+    return t.length >= 2 ? { t, c } : null;
+  } catch (e) { return null; }
+}
+/* Rellena el histórico de cada posición de Trade Republic que no esté fresco:
+   velas del mensaje aggregateHistory vía servidor local; criptos vía CoinGecko.
+   Los fallos no se reintentan en cada refresco (una vez por hora). */
+async function trSyncHistories() {
+  if (AR.trh || !trLocal() || S.demo) return;
+  const list = trAssets().filter(a => a.isin && a.vQty > 0);
+  const stale = list.filter(a => !(TRH.by[a.isin] && TRH.by[a.isin].at && Date.now() - TRH.by[a.isin].at < (TRH.by[a.isin].miss ? TRH_MISS_TTL : TRH_TTL)));
+  if (!stale.length) return;
+  AR.trh = true;
+  let changed = false;
+  try {
+    for (const a of stale) {
+      const isin = a.isin;
+      let h = null;
+      if (a.type === 'crypto') { const sym = trCryptoSymbol(isin); if (sym) h = await trCryptoHist(sym); }
+      else {
+        try {
+          const j = await trFetch('/history?isin=' + encodeURIComponent(isin) + '&range=1y&exchange=LSX');
+          h = j && Array.isArray(j.candles) && j.candles.length >= 2 ? j.candles : null;
+        } catch (e) { /* sin sesión o sin datos: se reintentará más tarde */ }
+      }
+      if (h) {
+        if (Array.isArray(h)) h = { t: h.map(x => Math.floor(Number(x[0]) / DAY)), c: h.map(x => Number(x[1])) };
+        if (!h.t || h.t.length < 2) h = null;
+      }
+      if (h) { TRH.by[isin] = { at: Date.now(), t: h.t, c: h.c }; changed = true; }
+      else TRH.by[isin] = { at: Date.now(), miss: true };
+    }
+  } finally { AR.trh = false; }
+  if (changed) { trHistCacheSave(); MEMO = null; UI.histCache = null; render(true); }
 }
 
 /* ---------- Actualización automática ---------- */
@@ -1325,6 +1409,18 @@ function drawCashMini(id) {
   for (let i = from; i < r.ser.length; i++) { t.push(r.start + i); v.push(r.ser[i]); }
   box.innerHTML = miniSVG({ t, v, w: box.clientWidth || 480, h: 150, color: 'var(--k-etf)' });
 }
+function drawBrokerMini(id) {
+  const box = $('#miniChart'); if (!box) return;
+  const a = t212Assets().find(x => x.id === id) || trAssets().find(x => x.id === id);
+  if (!a) return;
+  const hh = a.hist;
+  if (!hh || !hh.c || hh.c.length < 2) {
+    box.innerHTML = '<div class="chart-empty">' + (a.source === 't212' ? 'Trading 212 no publica histórico de precios en su API; la gráfica aparece con tus operaciones importadas.' : 'Trade Republic no devolvió histórico para este instrumento.') + '</div>';
+    return;
+  }
+  const qty = a.vQty || 0;
+  box.innerHTML = miniSVG({ t: hh.t, v: hh.c, w: box.clientWidth || 480, h: 150, color: 'var(--k-tr)', hline: qty > 0 && a.vCost ? a.vCost / qty : null });
+}
 
 /* =========================================================
    Hoja lateral / inferior con física de muelle
@@ -1622,6 +1718,8 @@ function shBroker(id) {
   return head(a.name) +
     '<p class="help" style="margin-top:6px"><span class="pill src">' + esc(srcName) + '</span> Solo lectura · se sincroniza al actualizar el broker.</p>' +
     '<div class="asset-head"><span class="badge" style="--k:var(' + (a.source === 't212' ? '--k-t212' : '--k-tr') + ')"><span>' + esc(badgeTxt(a)) + '</span><img class="logo" data-isin="' + esc(a.isin || '') + '" alt=""></span><div style="min-width:0"><p class="label" style="margin:0">' + esc(a.symbol || a.isin || '') + '</p><p class="big2 money">' + pxf(a.price) + '</p></div></div>' +
+    '<div class="mini" id="miniChart"></div>' +
+    (a.source === 'tr' && a.hist && a.hist.c && a.hist.c.length > 1 ? '<p class="help">Histórico del propio Trade Republic. Línea discontinua: tu precio medio.</p>' : '') +
     '<dl class="stats">' +
       '<div><dt>Participaciones</dt><dd>' + qtyf(qty) + '</dd></div>' +
       '<div><dt>Precio actual</dt><dd>' + pxf(a.price) + '</dd></div>' +
@@ -1811,10 +1909,12 @@ function trAssets() {
     const price = okNum(p.currentPrice) ? Number(p.currentPrice) : avg;
     const value = okNum(p.value) ? Number(p.value) : cost;
     const ppl = okNum(p.ppl) ? Number(p.ppl) : null;
+    const hh = p.isin ? TRH.by[p.isin] : null;
+    const hist = hh && hh.t && hh.t.length ? { t: hh.t, c: hh.c } : null;
     return {
       id: 'tr_' + (p.isin || Math.random().toString(36).slice(2, 8)),
       kind: 'asset', source: 'tr', type: trTypeOf(p.instrumentType), name, symbol: p.isin || '', isin: p.isin || '',
-      currency: cur, price: price, prev: price, txs: [], hist: null,
+      currency: cur, price: price, prev: price, txs: [], hist,
       vQty: qty, vCost: cost, vValue: value, vPpl: ppl
     };
   }).filter(Boolean);
@@ -2004,7 +2104,7 @@ ACT.settings = () => openSheet({ fn: shSettings, title: 'Ajustes' });
 ACT['demo-on'] = () => { S.demo = true; S.demoDocs = new Map(demoDocs().map(d => [d.id, d])); runPlans(true); if (SH.open) closeSheet(); UI.tab = 'resumen'; render(true); };
 ACT['demo-off'] = () => { S.demo = false; S.demoDocs = new Map(); if (SH.open) closeSheet(); if (S.needPlans) { S.needPlans = false; runPlans(); } render(true); };
 ACT['open-asset'] = el => { const id = el.dataset.id; const v = { fn: shAsset, args: [id], live: true, after: () => drawAssetMini(id), title: 'Activo' }; openSheet(v, SH.open && inSheet(el)); };
-ACT['open-broker'] = el => { const id = el.dataset.id; const v = { fn: shBroker, args: [id], title: 'Posición' }; openSheet(v, SH.open && inSheet(el)); };
+ACT['open-broker'] = el => { const id = el.dataset.id; const v = { fn: shBroker, args: [id], title: 'Posición', after: () => drawBrokerMini(id) }; openSheet(v, SH.open && inSheet(el)); };
 ACT['open-cash'] = el => { const id = el.dataset.id; const v = { fn: shCash, args: [id], live: true, after: () => drawCashMini(id), title: 'Cuenta' }; openSheet(v, SH.open && inSheet(el)); };
 ACT['edit-plan'] = el => { const v = { fn: shPlan, args: [{ planId: el.dataset.id }], title: 'Plan' }; openSheet(v, SH.open && inSheet(el)); };
 ACT['toggle-plan'] = el => {
@@ -2364,7 +2464,7 @@ function boot() {
   if (STANDALONE) {
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* sin persistencia */ }
   }
-  t212CacheLoad(); trCacheLoad();
+  t212CacheLoad(); trCacheLoad(); trHistCacheLoad();
   render();
   initStore(); initBrokers();
   setInterval(() => {

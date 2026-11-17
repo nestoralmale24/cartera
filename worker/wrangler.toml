@@ -4,7 +4,7 @@ main = "precios.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-ALLOWED_ORIGINS = "https://nestoralmale24.github.io,http://localhost:3000,http://127.0.0.1:3000"
+ALLOWED_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 
 # Trading 212 (solo lectura). NO pongas aquí tus claves reales: crea estas dos
 # variables como SECRETOS en el panel de Cloudflare (Settings → Variables → Secrets).

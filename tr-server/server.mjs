@@ -14,6 +14,7 @@
      GET  /qr          -> { ok:true, qrPayload, status }  (payload actual para pintar)
      GET  /status      -> { ok:true, status:"pending"|"connected" }
      GET  /portfolio   -> { ok:true, positions:[...], cash:[...], plans:[...] } en solo lectura
+      GET  /history?isin=..&range=..&exchange=.. -> velas de precio { ok:true, candles:[[ms,cierre],...] }
 
    La sesión se guarda en ~/.tr_api_cookies.json (lo hace trapi) para no tener
    que volver a escanear el QR en cada arranque. */
@@ -23,7 +24,13 @@ import fs from "fs";
 import path from "path";
 
 const PORT = Number(process.env.PORT || 8788);
-const ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000,https://nestoralmale24.github.io")
+// Solo escucha en tu equipo (127.0.0.1). Si quieres usar la app desde otro
+// dispositivo de tu red, arranca con HOST=0.0.0.0.
+const HOST = process.env.HOST || "127.0.0.1";
+// Orígenes de navegador que pueden consultar este servidor. Por defecto solo
+// tu equipo en desarrollo. Para usarla desde GitHub Pages u otro dominio,
+// arranca con ALLOWED_ORIGINS=https://TU-USUARIO.github.io,http://localhost:3000
+const ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 // Estado global del puente. Vive mientras el proceso esté corriendo.
@@ -34,7 +41,8 @@ const state = {
   portfolio: null,         // última lectura de posiciones
   cash: null,              // último saldo
   plans: null,             // últimos planes de ahorro
-  at: null                 // timestamp de la última lectura
+  at: null,                // timestamp de la última lectura
+  histCache: {}            // velas por "isin|range|exchange" -> { at, data }
 };
 
 let api = null;            // instancia de TradeRepublicApi (trapi)
@@ -230,6 +238,47 @@ async function readPortfolio() {
   return { positions, cash, plans };
 }
 
+/* =========================================================
+   Histórico de precios (mensaje "aggregateHistory" de TR)
+   ========================================================= */
+const HIST_TTL = 20 * 60 * 1000; // las velas se reutilizan 20 minutos
+const HIST_RANGES = new Set(["1d", "5d", "1m", "3m", "6m", "1y", "5y", "max"]);
+
+/* Normaliza la respuesta de aggregateHistory (no oficial; el formato puede
+   variar) a una lista [[ms, cierre], ...] ordenada por tiempo. */
+function parseCandles(data) {
+  const raw = data && (data.candles || data.values || data.timeseries);
+  if (!Array.isArray(raw)) return null;
+  const out = [];
+  for (const k of raw) {
+    if (!k || typeof k !== "object") continue;
+    let t = k.t != null ? k.t : (k.timestamp != null ? k.timestamp : k.time);
+    let c = k.c != null ? k.c : (k.close != null ? k.close : null);
+    if (t == null || c == null) continue;
+    t = Number(t); c = Number(c);
+    if (!isFinite(t) || !isFinite(c)) continue;
+    if (t < 1e11) t *= 1000; // segundos -> milisegundos
+    out.push([t, c]);
+  }
+  if (out.length < 2) return null;
+  out.sort((a, b) => a[0] - b[0]);
+  return out;
+}
+
+/* Velas de un instrumento. "range" va de 1d a max (tal y como los entiende
+   Trade Republic). Con caché en memoria para no repetir peticiones al
+   WebSocket con la actualización automática cada pocos segundos. */
+async function readHistory(api, isin, range, exchange) {
+  const key = isin + "|" + range + "|" + exchange;
+  const hit = state.histCache[key];
+  if (hit && Date.now() - hit.at < HIST_TTL) return hit.data;
+  const res = await subOnce(api, createMessage("aggregateHistory", { id: isin + "." + exchange, range }), 20000);
+  const data = parseCandles(res);
+  if (data) state.histCache[key] = { at: Date.now(), data };
+  else delete state.histCache[key];
+  return data;
+}
+
 /* Nombre de un instrumento buscando su ISIN en el buscador de Trade Republic. */
 async function planNameByIsin(api, isin) {
   try {
@@ -279,6 +328,18 @@ function startLogin() {
   return loginPromise;
 }
 
+/* Sesión disponible para rutas protegidas. Devuelve null si hay sesión o una
+   respuesta JSON lista para enviar si no la hay. */
+async function guardSession(origin) {
+  if (state.status === "pending") return json(origin, { ok: false, code: "tr_pending", error: "Escanea y confirma el QR en la app." }, 409);
+  const ok = await ensureConnected();
+  if (!ok) {
+    if (state.error) return json(origin, { ok: false, code: "tr_login", error: state.error }, 401);
+    return json(origin, { ok: false, code: "tr_login", error: "No hay sesión. Haz login con el QR primero." }, 401);
+  }
+  return null;
+}
+
 async function ensureConnected() {
   // Reutiliza la sesión guardada por trapi si existe, sin QR.
   if (state.status === "connected") return true;
@@ -313,6 +374,7 @@ async function ensureConnected() {
 
 const server = Bun.serve({
   port: PORT,
+  hostname: HOST,
   async fetch(req) {
     const url = new URL(req.url);
     const origin = req.headers.get("origin") || "";
@@ -332,13 +394,22 @@ const server = Bun.serve({
       return json(origin, { ok: true, status: state.status, error: state.error });
     }
     if (url.pathname === "/portfolio" && req.method === "GET") {
-      if (state.status === "pending") return json(origin, { ok: false, code: "tr_pending", error: "Escanea y confirma el QR en la app." }, 409);
-      const ok = await ensureConnected();
-      if (!ok) {
-        if (state.error) return json(origin, { ok: false, code: "tr_login", error: state.error }, 401);
-        return json(origin, { ok: false, code: "tr_login", error: "No hay sesión. Haz login con el QR primero." }, 401);
-      }
+      const g = await guardSession(origin);
+      if (g) return g;
       return json(origin, { ok: true, positions: state.portfolio, cash: state.cash, plans: state.plans, at: state.at });
+    }
+    if (url.pathname === "/history" && req.method === "GET") {
+      const isin = String(url.searchParams.get("isin") || "").toUpperCase();
+      const range = String(url.searchParams.get("range") || "1y").toLowerCase();
+      const exchange = String(url.searchParams.get("exchange") || "LSX").toUpperCase();
+      if (!/^[A-Z0-9]{4,12}$/.test(isin)) return json(origin, { ok: false, code: "tr_bad_isin", error: "ISIN no válido." }, 400);
+      if (!HIST_RANGES.has(range)) return json(origin, { ok: false, code: "tr_bad_range", error: "Rango no válido." }, 400);
+      if (!/^[A-Z0-9]{1,10}$/.test(exchange)) return json(origin, { ok: false, code: "tr_bad_exchange", error: "Exchange no válido." }, 400);
+      const g = await guardSession(origin);
+      if (g) return g;
+      const candles = await readHistory(api, isin, range, exchange);
+      if (!candles) return json(origin, { ok: false, code: "tr_no_history", error: "Trade Republic no devolvió histórico para ese instrumento." }, 404);
+      return json(origin, { ok: true, isin, range, exchange, candles });
     }
     return json(origin, { ok: false, error: "Ruta no permitida" }, 404);
   }

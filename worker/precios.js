@@ -4,7 +4,9 @@
    navegador necesita. No guarda nada.
 
    Orígenes permitidos: variable ALLOWED_ORIGINS (separados por comas) o, si no existe,
-   la lista DEFAULT_ORIGINS de abajo. Usa "*" para permitir cualquiera.
+   la lista DEFAULT_ORIGINS de abajo (solo tu equipo en desarrollo). Para usarla desde
+   GitHub Pages u otro dominio, crea ALLOWED_ORIGINS en el panel (Settings → Variables)
+   o en [vars] de wrangler.toml. Usa "*" para permitir cualquiera.
 
    Trading 212: autenticación Basic con las variables secretas del Worker
    T212_KEY (API Key) y T212_SECRET (API Secret). Configúralas en el panel de
@@ -13,7 +15,7 @@
    Trade Republic NO se sirve desde aquí: usa un servidor local en tu PC
    (carpeta tr-server/) porque requiere un flujo QR con WebSocket y WAF (Puppeteer)
    que un Worker no puede hacer. Ver README. */
-const DEFAULT_ORIGINS = 'https://nestoralmale24.github.io,http://localhost:3000,http://127.0.0.1:3000';
+const DEFAULT_ORIGINS = 'http://localhost:3000,http://127.0.0.1:3000';
 const T212 = 'https://live.trading212.com/api/v0';
 
 /* =========================================================
@@ -83,7 +85,7 @@ export default {
       'Vary': 'Origin'
     };
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-    if (!allowed) return reply({ error: 'Origen no permitido: ' + origin }, 403, cors);
+    if (!allowed) return reply({ error: 'Origen no permitido: ' + origin + '. Añádelo a la variable ALLOWED_ORIGINS de este Worker, separado por comas.', code: 'origin_denied' }, 403, cors);
 
     const url = new URL(request.url);
     if (url.pathname === '/') return reply({ ok: true, servicio: 'cartera-brokers' }, 200, cors);

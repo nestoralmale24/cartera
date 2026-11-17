@@ -116,6 +116,7 @@ async function testWebBrokers() {
     if (url === 'http://localhost:8788/login') return resp({ ok: true, status: 'qr' });
     if (url === 'http://localhost:8788/qr') return resp({ ok: true, status: 'pending', qrPayload: 'https://tr.test/qr' });
     if (url === 'http://localhost:8788/status') return resp({ ok: true, status: 'connected' });
+    if (url.startsWith('http://localhost:8788/history')) return resp({ ok: true, isin: 'IE00B4L5Y983', range: '1y', exchange: 'LSX', candles: [[Date.now() - 2 * 864e5, 90], [Date.now() - 864e5, 93], [Date.now(), 95]] });
     if (url === 'http://localhost:8788/portfolio') return resp({
       ok: true,
       positions: [
@@ -128,7 +129,8 @@ async function testWebBrokers() {
         { id: 'p2', instrumentId: 'XF000BTC0017', amount: 50, interval: 'twoPerMonth', instrumentType: 'crypto', paused: false, nextExecutionDate: '2026-12-02' }
       ]
     });
-    // Precio de criptos: CoinGecko.
+    // Precio de criptos: CoinGecko. El histórico (/market_chart) va aparte.
+    if (url.includes('/market_chart')) return resp({ prices: [[Date.now() - 2 * 864e5, 40000], [Date.now() - 864e5, 45000], [Date.now(), 50000]] });
     if (url.startsWith('https://api.coingecko.com/')) return resp({ bitcoin: { eur: 50000 } });
     // Logos por ISIN: Wikidata (SPARQL).
     if (url.startsWith('https://query.wikidata.org/sparql')) {
@@ -187,6 +189,15 @@ async function testWebBrokers() {
   ok('Bitcoin tiene P/L (CoinGecko para cripto)', MT.pos.some(p => p.broker && p.a.source === 'tr' && p.a.isin === 'XF000BTC0017' && p.pnl === 100), JSON.stringify(MT.pos.filter(p => p.a.source === 'tr' && p.a.isin === 'XF000BTC0017')));
   ok('la liquidez de Trade Republic también suma', MT.trCash === 100.5 && MT.cashTotal === 1100.5, String(MT.cashTotal));
   ok('muestra los planes en la sección con su instrumento', /ETF Global/.test(d.querySelector('#trBody').textContent) && /Bitcoin/.test(d.querySelector('#trBody').textContent), d.querySelector('#trBody').textContent);
+  // Histórico: velas de Trade Republic (y criptos por CoinGecko) para las gráficas.
+  await sleep(400);
+  const trhCache = JSON.parse(w.localStorage.getItem('cartera.tr.hist.v1') || '{}');
+  const etfHist = trhCache.by && trhCache.by['IE00B4L5Y983'];
+  const btcHist = trhCache.by && trhCache.by['XF000BTC0017'];
+  ok('guarda el histórico de Trade Republic', !!etfHist && Array.isArray(etfHist.c) && etfHist.c.length === 3, trhCache.by && JSON.stringify(Object.keys(trhCache.by)));
+  ok('guarda el histórico de Bitcoin (CoinGecko)', !!btcHist && Array.isArray(btcHist.c) && btcHist.c.length === 3);
+  const HB = w.__cartera.history(365);
+  ok('el histórico del patrimonio incluye a los brokers', !!HB && HB.val[HB.val.length - 1] > 3000, HB && String(HB.val.slice(-3)));
   // La pestaña Planes muestra los planes de Trade Republic ponderando el intervalo.
   d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
   d.querySelector('#topTabs [data-tab="planes"]').click(); await sleep(60);
@@ -208,6 +219,14 @@ async function testWebBrokers() {
   // Logos por ISIN (Wikidata).
   const logo = d.querySelector('#view img.logo[src*="wikimedia"]');
   ok('las posiciones muestran logotipo', !!logo, d.querySelector('#view').textContent.slice(0, 300));
+  // Gráficas con el histórico del broker: sparkline en la lista y mini gráfica en la ficha.
+  const trRow = d.querySelector('.row[data-action="open-broker"][data-id^="tr_"]');
+  ok('la fila de Trade Republic muestra su sparkline', trRow && !!trRow.querySelector('.spark svg'), trRow && trRow.outerHTML.slice(0, 300));
+  if (trRow) {
+    trRow.click(); await sleep(80);
+    ok('la ficha de Trade Republic dibuja la mini gráfica', !!d.querySelector('#miniChart svg'), (d.querySelector('#miniChart').textContent || '').slice(0, 60));
+    d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
+  }
   ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
   w.close();
 }
@@ -222,22 +241,28 @@ async function testWorker() {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => { seen.push({ url: String(url), init }); return new Response(JSON.stringify({ ok: true, ticker: 'AAPL' }), { status: 200 }); };
   try {
-    const ORIGIN = 'https://nestoralmale24.github.io';
+    const ORIGIN = 'https://miapp.example';
+    // Sin variable ALLOWED_ORIGINS, solo se permiten los orígenes de desarrollo local.
     let r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: ORIGIN } }), {});
-    ok('responde con el servicio', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
-    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), {});
+    ok('sin orígenes configurados rechaza con pista', r.status === 403 && JSON.parse(await r.text()).code === 'origin_denied');
+    r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: 'http://localhost:3000' } }), {});
+    ok('permite el desarrollo local sin configurar', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
+    // Con la variable configurada, se permite al dominio indicado.
+    r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
+    ok('con ALLOWED_ORIGINS responde con el servicio', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
     ok('sin claves devuelve error claro', r.status === 200 && JSON.parse(await r.text()).code === 't212_unconfigured');
-    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), { T212_KEY: 'k', T212_SECRET: 's' });
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN, T212_KEY: 'k', T212_SECRET: 's' });
     ok('con claves reenvía a Trading 212', seen.some(x => x.url === 'https://live.trading212.com/api/v0/equity/account/summary'), seen.map(x => x.url).join(', '));
     const authHeader = seen.find(x => x.url.includes('account/summary')).init.headers.Authorization;
     ok('usa Basic Auth', /^Basic /.test(authHeader));
-    r = await worker.fetch(new Request('https://w.test/v8/finance/chart/AAPL', { method: 'POST', headers: { Origin: ORIGIN } }), {});
+    r = await worker.fetch(new Request('https://w.test/v8/finance/chart/AAPL', { method: 'POST', headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
     ok('ya no acepta rutas de Yahoo', r.status === 404);
-    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: 'https://otra-web.example' } }), { T212_KEY: 'k', T212_SECRET: 's' });
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: 'https://otra-web.example' } }), { ALLOWED_ORIGINS: ORIGIN, T212_KEY: 'k', T212_SECRET: 's' });
     ok('rechaza otras webs', r.status === 403);
-    r = await worker.fetch(new Request('https://w.test/tr/login', { headers: { Origin: ORIGIN } }), {});
+    r = await worker.fetch(new Request('https://w.test/tr/login', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
     ok('ya no sirve Trade Republic (va al servidor local)', r.status === 404);
-    r = await worker.fetch(new Request('https://w.test/t212/account', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), {});
+    r = await worker.fetch(new Request('https://w.test/t212/account', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
     ok('responde a la comprobación previa', r.status === 204);
   } finally { globalThis.fetch = realFetch; }
 }
