@@ -24,6 +24,7 @@
 - 🤖 **Brokers en solo lectura** (versión web): cuenta, posiciones, planes de ahorro y liquidez de Trading 212 y Trade Republic. Los datos se guardan en el dispositivo.
 - ⏱️ **Actualización automática** cada 5 s por defecto (5s / 15s / 30s / 60s / apagado).
 - 🌗 **Tema con un clic**: botón sol/luna que alterna claro ↔ oscuro.
+- 🕶️ **Modo privado**: el ojo de la cabecera difumina todos los valores para que nadie los vea de refilón.
 - 🏷️ **Logos por ISIN** desde Wikidata (con caché local); si no hay resultado, insignia con letras.
 - 🗂️ **Inversiones por tipo**: Todo · Acciones · ETFs · Fondos · Cripto · Otros.
 

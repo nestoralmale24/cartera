@@ -952,6 +952,21 @@ function renderThemeBtn() {
   b.title = dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
   b.setAttribute('aria-label', b.title);
 }
+/* Modo privado: difumina todos los valores (ojo de la cabecera). */
+function applyPrivacy() {
+  document.documentElement.classList.toggle('prv', UI.privacy);
+  renderPrivacyBtn();
+}
+function renderPrivacyBtn() {
+  const b = $('#privacyBtn');
+  if (!b) return;
+  const hid = UI.privacy;
+  b.title = hid ? 'Mostrar valores' : 'Ocultar valores';
+  b.setAttribute('aria-label', b.title);
+  // El ojo se queda siempre; solo aparece/desaparece la línea de tachado.
+  const slash = $('#prvSlash');
+  if (slash) slash.style.display = hid ? '' : 'none';
+}
 
 /* ---------- Tema (automático / claro / oscuro) ---------- */
 function applyTheme() {
@@ -1042,10 +1057,11 @@ function demoDocs() {
    Estado de interfaz
    ========================================================= */
 const TABS = ['resumen', 'inversiones', 'liquidez', 'planes'];
-const UI = { tab: 'resumen', range: 182, filter: 'all', sort: 'value', histCache: null, refresh: 5, theme: 'auto' };
+const UI = { tab: 'resumen', range: 182, filter: 'all', sort: 'value', histCache: null, refresh: 5, theme: 'auto', privacy: false };
 const AUTO_OPTS = [5, 15, 30, 60, 0];
 const LS_AUTOREFRESH = 'cartera.autoRefresh.v1';
 const LS_THEME = 'cartera.theme.v1';
+const LS_PRIVACY = 'cartera.privacy.v1';
 const LS_LOGOS = 'cartera.logos.v1';
 const LOGOS = { map: {}, pending: new Set() };
 const AD = { tab: 'inv', q: '', mine: [], cat: [], cashMode: null };
@@ -1086,6 +1102,7 @@ function renderTop() {
   for (const b of $$('[role="tab"][data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === UI.tab));
   renderRateBtn();
   renderThemeBtn();
+  renderPrivacyBtn();
   setSync();
 }
 function renderBanner() {
@@ -2144,6 +2161,12 @@ ACT['theme-toggle'] = () => {
   renderThemeBtn();
   toast(UI.theme === 'dark' ? 'Tema oscuro' : 'Tema claro');
 };
+ACT['privacy-toggle'] = () => {
+  UI.privacy = !UI.privacy;
+  lsSet(LS_PRIVACY, { p: UI.privacy });
+  applyPrivacy();
+  toast(UI.privacy ? 'Valores ocultos. Toca el ojo para mostrarlos.' : 'Valores visibles');
+};
 ACT['rate-set'] = el => {
   UI.refresh = +el.dataset.s;
   lsSet(LS_AUTOREFRESH, { s: UI.refresh });
@@ -2569,7 +2592,9 @@ function boot() {
   if (ar && AUTO_OPTS.includes(ar.s)) UI.refresh = ar.s;
   const th = lsGet(LS_THEME);
   if (th && ['auto', 'light', 'dark'].includes(th.t)) UI.theme = th.t;
-  applyTheme(); logoCacheLoad();
+  const pv = lsGet(LS_PRIVACY);
+  if (pv) UI.privacy = !!pv.p;
+  applyTheme(); applyPrivacy(); logoCacheLoad();
   const h = String(location.hash || '').slice(1);
   if (TABS.includes(h)) UI.tab = h;
   bindGlobal(); initDrag();

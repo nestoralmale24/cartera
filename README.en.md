@@ -24,6 +24,7 @@
 - 🤖 **Read-only brokers** (web version): account, positions, savings plans and cash of Trading 212 and Trade Republic. Data is stored on the device.
 - ⏱️ **Auto refresh** every 5 s by default (5s / 15s / 30s / 60s / off).
 - 🌗 **Theme with one tap**: sun/moon button toggles light ↔ dark.
+- 🕶️ **Privacy mode**: the eye in the top bar blurs every value so no one can peek over your shoulder.
 - 🏷️ **Logos by ISIN** from Wikidata (locally cached); fallback to a letter badge.
 - 🗂️ **Investments by type**: All · Stocks · ETFs · Funds · Crypto · Other.
 

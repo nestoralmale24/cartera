@@ -183,6 +183,17 @@ async function testWebBrokers() {
   ok('un clic pone tema oscuro', d.documentElement.getAttribute('data-theme') === 'dark');
   d.querySelector('#themeBtn').click(); await sleep(30);
   ok('otro clic vuelve a tema claro', d.documentElement.getAttribute('data-theme') === 'light');
+  // Modo privado: el ojo difumina los valores.
+  d.querySelector('#privacyBtn').click(); await sleep(30);
+  ok('el modo privado se activa con un clic', d.documentElement.classList.contains('prv'));
+  ok('el difuminado cubre los KPI del reparto', Array.from(d.querySelectorAll('style')).some(s => /html\.prv \.kpis dd/.test(s.textContent)));
+  ok('el difuminado cubre las sublíneas de importes', Array.from(d.querySelectorAll('style')).some(s => /html\.prv \.subline/.test(s.textContent)));
+  ok('el difuminado es intenso y proporcional al tamaño', Array.from(d.querySelectorAll('style')).some(s => /html\.prv[\s\S]*?filter:blur\(\.5em\)/.test(s.textContent)));
+  ok('la preferencia de privacidad se guarda', JSON.parse(w.localStorage.getItem('cartera.privacy.v1')).p === true);
+  ok('el ojo se tacha al ocultar los valores', d.querySelector('#prvSlash').style.display !== 'none');
+  d.querySelector('#privacyBtn').click(); await sleep(30);
+  ok('otro clic vuelve a mostrar los valores', !d.documentElement.classList.contains('prv'));
+  ok('el ojo se destacha al mostrar los valores', d.querySelector('#prvSlash').style.display === 'none');
   // Trade Republic (servidor local)
   const trUrl = d.querySelector('#tr-url'); trUrl.value = 'http://localhost:8788';
   fire(w, trUrl.closest('form'), 'submit'); await sleep(60);

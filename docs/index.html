@@ -77,6 +77,20 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* ---------- top bar */
+/* modo privado (ojo de la cabecera): difumina todos los valores */
+html.prv .money, html.prv .num, html.prv .r-num, html.prv .amt,
+html.prv .delta, html.prv .big, html.prv .big2, html.prv .kv dd,
+html.prv .kpis dd, html.prv .stats dd, html.prv .total-line b,
+html.prv .meta b, html.prv .simple-list .r, html.prv .simple-list .l small,
+html.prv .tx-list .r, html.prv .tx-list .l small, html.prv .spark,
+html.prv .chart, html.prv .ylab, html.prv .alloc-bar, html.prv .alloc-list,
+html.prv .pill, html.prv .preview, html.prv .subline, html.prv .faint,
+html.prv .chosen small{
+  filter:blur(.5em);
+  -webkit-filter:blur(.5em);
+  opacity:.7;
+  user-select:none;-webkit-user-select:none;pointer-events:none;
+}
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--glass);backdrop-filter:blur(20px) saturate(170%);-webkit-backdrop-filter:blur(20px) saturate(170%);border-bottom:1px solid var(--line)}
 .topbar-in{max-width:1180px;margin:0 auto;height:60px;display:flex;align-items:center;gap:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:-.01em;white-space:nowrap}
@@ -387,6 +401,7 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
         <button role="tab" data-action="tab" data-tab="planes">Planes</button>
       </nav>
       <div class="actions">
+        <button class="iconbtn" data-action="privacy-toggle" id="privacyBtn" title="Ocultar valores" aria-label="Ocultar valores"><svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.7-6.5 10-6.5S22 12 22 12s-3.7 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/><path id="prvSlash" d="M3 3l18 18" style="display:none"/></svg></button>
         <button class="iconbtn" data-action="theme-toggle" id="themeBtn" title="Cambiar tema" aria-label="Cambiar tema"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></button>
         <div class="rate-wrap">
           <button class="btn ghost sm" data-action="refresh-rate" id="refreshRateBtn" title="Frecuencia de actualización automática"><svg class="i" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="hide-m" id="refreshRateLbl">5s</span></button>
@@ -1376,6 +1391,21 @@ function renderThemeBtn() {
   b.title = dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
   b.setAttribute('aria-label', b.title);
 }
+/* Modo privado: difumina todos los valores (ojo de la cabecera). */
+function applyPrivacy() {
+  document.documentElement.classList.toggle('prv', UI.privacy);
+  renderPrivacyBtn();
+}
+function renderPrivacyBtn() {
+  const b = $('#privacyBtn');
+  if (!b) return;
+  const hid = UI.privacy;
+  b.title = hid ? 'Mostrar valores' : 'Ocultar valores';
+  b.setAttribute('aria-label', b.title);
+  // El ojo se queda siempre; solo aparece/desaparece la línea de tachado.
+  const slash = $('#prvSlash');
+  if (slash) slash.style.display = hid ? '' : 'none';
+}
 
 /* ---------- Tema (automático / claro / oscuro) ---------- */
 function applyTheme() {
@@ -1466,10 +1496,11 @@ function demoDocs() {
    Estado de interfaz
    ========================================================= */
 const TABS = ['resumen', 'inversiones', 'liquidez', 'planes'];
-const UI = { tab: 'resumen', range: 182, filter: 'all', sort: 'value', histCache: null, refresh: 5, theme: 'auto' };
+const UI = { tab: 'resumen', range: 182, filter: 'all', sort: 'value', histCache: null, refresh: 5, theme: 'auto', privacy: false };
 const AUTO_OPTS = [5, 15, 30, 60, 0];
 const LS_AUTOREFRESH = 'cartera.autoRefresh.v1';
 const LS_THEME = 'cartera.theme.v1';
+const LS_PRIVACY = 'cartera.privacy.v1';
 const LS_LOGOS = 'cartera.logos.v1';
 const LOGOS = { map: {}, pending: new Set() };
 const AD = { tab: 'inv', q: '', mine: [], cat: [], cashMode: null };
@@ -1510,6 +1541,7 @@ function renderTop() {
   for (const b of $$('[role="tab"][data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === UI.tab));
   renderRateBtn();
   renderThemeBtn();
+  renderPrivacyBtn();
   setSync();
 }
 function renderBanner() {
@@ -2568,6 +2600,12 @@ ACT['theme-toggle'] = () => {
   renderThemeBtn();
   toast(UI.theme === 'dark' ? 'Tema oscuro' : 'Tema claro');
 };
+ACT['privacy-toggle'] = () => {
+  UI.privacy = !UI.privacy;
+  lsSet(LS_PRIVACY, { p: UI.privacy });
+  applyPrivacy();
+  toast(UI.privacy ? 'Valores ocultos. Toca el ojo para mostrarlos.' : 'Valores visibles');
+};
 ACT['rate-set'] = el => {
   UI.refresh = +el.dataset.s;
   lsSet(LS_AUTOREFRESH, { s: UI.refresh });
@@ -2993,7 +3031,9 @@ function boot() {
   if (ar && AUTO_OPTS.includes(ar.s)) UI.refresh = ar.s;
   const th = lsGet(LS_THEME);
   if (th && ['auto', 'light', 'dark'].includes(th.t)) UI.theme = th.t;
-  applyTheme(); logoCacheLoad();
+  const pv = lsGet(LS_PRIVACY);
+  if (pv) UI.privacy = !!pv.p;
+  applyTheme(); applyPrivacy(); logoCacheLoad();
   const h = String(location.hash || '').slice(1);
   if (TABS.includes(h)) UI.tab = h;
   bindGlobal(); initDrag();
