@@ -80,7 +80,7 @@ Edita siempre `src/` y vuelve a ejecutar `npm run build`. No edites `docs/` a ma
 
 Consejos:
 - Usa siempre el icono de la pantalla de inicio: lo que guardes ahí no se comparte con Safari.
-- Haz una copia de seguridad de vez en cuando desde Ajustes.
+- Tus datos viven en este dispositivo: no uses "Borrar todos mis datos" de Ajustes salvo que quieras empezar de cero.
 
 ## Conectar brokers (opcional)
 
@@ -94,7 +94,7 @@ Los datos se guardan en el dispositivo y se reutilizan sin conexión. Si quitas 
 ### 1. Trading 212 (API oficial)
 
 1. Crea una cuenta gratuita en [dash.cloudflare.com](https://dash.cloudflare.com).
-2. Entra en **Workers & Pages** → **Create** → **Create Worker**. Llámalo `cartera-brokers` y despliégalo.
+2. Entra en **Workers & Pages** → **Create** → **Create Worker**. Llámalo como quieras (ej. `cartera-brokers`) y despliégalo.
    (Alternativa por línea de comandos: copia `wrangler.example.toml` a `wrangler.toml` con el nombre de tu Worker y ejecuta `npx wrangler deploy` desde la raíz. Si despliegas pegando el código en el panel, este fichero no se usa).
 3. Pulsa **Edit code**, borra el código de ejemplo, pega el contenido de `worker/precios.js` y pulsa **Deploy**.
 4. En la pestaña de tu Worker, abre **Settings → Variables**:
@@ -105,7 +105,7 @@ Los datos se guardan en el dispositivo y se reutilizan sin conexión. Si quitas 
    - (Recomendado) En **Secrets**, añade también `ACCESS_KEY` con una frase larga y aleatoria (p. ej. la que te genere tu gestor de contraseñas). La app te la pedirá en su campo **Clave de acceso** y sin ella el Worker responderá **401**: aunque alguien averigüe la URL de tu Worker, no podrá leer tu cuenta.
 5. Copia la dirección del Worker, del tipo `https://cartera-brokers.TU-CUENTA.workers.dev`. Si la abres en el navegador debe responder `{"ok":true,"servicio":"cartera-brokers"}`.
 6. Dile a la app dónde está el Worker:
-   - Para todos tus dispositivos: copia `config.example.json` a `config.json`, pon tu dirección, ejecuta `npm run build` y haz push; o
+   - Para todos tus dispositivos: copia `config.example.json` a `config.json`, pon tu dirección, ejecuta `npm run build` y haz push. Si el repositorio es público, esa URL quedará visible (inocuo si defines `ACCESS_KEY`); si prefieres no publicarla, usa la opción de Ajustes de cada dispositivo; o
    - Solo para este dispositivo: en la app, Ajustes → Servidor de brokers → pega la dirección (y tu **Clave de acceso**, si definiste `ACCESS_KEY`) → **Conectar**.
 
 **Seguridad.** Las claves viven como *secretos* de Cloudflare (cifrados y no visibles) y el navegador nunca las recibe: solo pide `/t212/account` y `/t212/positions`, y el Worker es quien añade la autenticación y reenvía a Trading 212. Trata la dirección de tu Worker como **privada**: quien la conozca y use un origen permitido puede leer tu cuenta (solo lectura). Con el secreto `ACCESS_KEY` además, la app envía la cabecera `X-Access` en cada petición y el Worker la exige; esa clave tampoco sale de tu dispositivo ni se reenvía a Trading 212. Si tu URL ya se ha filtrado (p. ej. está en el historial de un repositorio público), lo más seguro es **rotar el Worker**: créate uno nuevo con otro nombre, borra el viejo y actualiza la URL en tus dispositivos.
@@ -131,7 +131,7 @@ Trade Republic no ofrece API pública. La conexión usa el flujo de **código QR
    ALLOWED_ORIGINS=https://TU-USUARIO.github.io bun server.mjs
    ```
 4. En la app: Ajustes → Trade Republic → escribe `http://localhost:8788` y **Guardar**.
-5. Pulsa **Vincular con QR**, escanea el código con la app de Trade Republic y confirma. Luego **Ya lo he escaneado**.
+5. Pulsa **Vincular con QR**, escanea el código con la app de Trade Republic y confirma. La app detecta la conexión sola y carga el portfolio (el botón de respaldo queda por si el sondeo no arrancara).
 
 La sesión se guarda en `~/.tr_api_cookies.json` y se reutiliza en siguientes arranques. El servidor solo escucha en tu equipo (`127.0.0.1`); para usarlo desde otro dispositivo de tu red, arráncalo con `HOST=0.0.0.0`. Si lo paras, Trade Republic deja de leerse (Trading 212 sí sigue funcionando en cualquier dispositivo).
 
@@ -141,6 +141,7 @@ La sesión se guarda en `~/.tr_api_cookies.json` y se reutiliza en siguientes ar
 
 - **"Origen no permitido"**: añade tu dominio a `ALLOWED_ORIGINS` del Worker de Cloudflare (Settings → Variables) o del servidor local de Trade Republic (variable de entorno) y despliega/relanza.
 - **"Trading 212 no está configurado"**: faltan los secretos `T212_KEY` y `T212_SECRET` en el Worker.
+- **"Clave de acceso incorrecta"**: comprueba que el secreto `ACCESS_KEY` del Worker y la **Clave de acceso** de Ajustes coinciden.
 - **"El servidor local de Trade Republic no responde"**: ¿está arrancado? `cd tr-server && bun server.mjs`. Solo funciona desde el PC donde corre.
 - **Sesión de Trade Republic caducada**: vuelve a vincular con el QR (Ajustes → Trade Republic).
 - **429 (demasiadas consultas)**: Trading 212 limita la frecuencia; espera un minuto y reintenta.
