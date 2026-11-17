@@ -49,7 +49,7 @@ worker/
 tr-server/
   server.mjs           Servidor local de Trade Republic (Bun + trapi)
   package.json         Dependencias del servidor local
-wrangler.toml          Configuración del worker de brokers (orígenes permitidos; despliegue por línea de comandos o Workers Builds)
+wrangler.example.toml Plantilla opcional para desplegar el worker por línea de comandos (cópiala a wrangler.toml con tu nombre)
 config.json            Dirección de tu servidor de brokers (la usa la versión web)
 config.example.json    Plantilla: cópiala a config.json y pon tu URL
 scripts/build.js       Genera dist/ y docs/
@@ -95,12 +95,12 @@ Los datos se guardan en el dispositivo y se reutilizan sin conexión. Si quitas 
 
 1. Crea una cuenta gratuita en [dash.cloudflare.com](https://dash.cloudflare.com).
 2. Entra en **Workers & Pages** → **Create** → **Create Worker**. Llámalo `cartera-brokers` y despliégalo.
-   (Alternativa por línea de comandos: `npx wrangler deploy` desde la raíz — el `wrangler.toml` vive allí).
+   (Alternativa por línea de comandos: copia `wrangler.example.toml` a `wrangler.toml` con el nombre de tu Worker y ejecuta `npx wrangler deploy` desde la raíz. Si despliegas pegando el código en el panel, este fichero no se usa).
 3. Pulsa **Edit code**, borra el código de ejemplo, pega el contenido de `worker/precios.js` y pulsa **Deploy**.
 4. En la pestaña de tu Worker, abre **Settings → Variables**:
    - Añade la variable `ALLOWED_ORIGINS` con tus orígenes separados por comas, por ejemplo:
      `https://TU-USUARIO.github.io,http://localhost:3000,http://127.0.0.1:3000`
-     Sin esta variable solo funciona desde tu propio PC en desarrollo. **Ojo**: si despliegas por línea de comandos (`wrangler deploy`) o con Workers Builds, los orígenes se leen del `wrangler.toml` de la raíz (edítalo ahí), porque el despliegue sobrescribe las variables del panel.
+     Sin esta variable solo funciona desde tu propio PC en desarrollo.
    - En **Secrets**, añade `T212_KEY` y `T212_SECRET` con tu API Key y tu API Secret (se generan en Trading 212: app/web → Ajustes → API Beta; solo cuentas **Invest** e **ISA**, no CFD ni SIPP).
    - (Recomendado) En **Secrets**, añade también `ACCESS_KEY` con una frase larga y aleatoria (p. ej. la que te genere tu gestor de contraseñas). La app te la pedirá en su campo **Clave de acceso** y sin ella el Worker responderá **401**: aunque alguien averigüe la URL de tu Worker, no podrá leer tu cuenta.
 5. Copia la dirección del Worker, del tipo `https://cartera-brokers.TU-CUENTA.workers.dev`. Si la abres en el navegador debe responder `{"ok":true,"servicio":"cartera-brokers"}`.
