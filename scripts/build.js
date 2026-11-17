@@ -67,17 +67,17 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 wr('docs/index.html', html);
 wr('docs/sw.js', rd('src/web/sw.js').replace('__VERSION__', version));
 cp('src/web/manifest.webmanifest', 'docs/manifest.webmanifest');
-// Configuración de la versión web (dirección del servidor de precios). Se edita en config.json, en la raíz.
-let cfg = { priceProxy: '' };
+// Configuración de la versión web (dirección del servidor de brokers). Se edita en config.json, en la raíz.
+let cfg = { brokerProxy: '' };
 if (fs.existsSync(path.join(root, 'config.json'))) {
   try { cfg = JSON.parse(rd('config.json')); } catch (e) { throw new Error('config.json no es un JSON válido: ' + e.message); }
 }
-if (cfg.priceProxy && !/^https:\/\//.test(cfg.priceProxy)) throw new Error('config.json: priceProxy debe empezar por https://');
-wr('docs/config.json', JSON.stringify({ priceProxy: cfg.priceProxy || '' }, null, 2) + '\n');
+if (cfg.brokerProxy && !/^https:\/\//.test(cfg.brokerProxy)) throw new Error('config.json: brokerProxy debe empezar por https://');
+wr('docs/config.json', JSON.stringify({ brokerProxy: cfg.brokerProxy || '' }, null, 2) + '\n');
 for (const f of fs.readdirSync(path.join(root, 'src/web/icons'))) cp('src/web/icons/' + f, 'docs/icons/' + f);
 wr('docs/.nojekyll', '');
 
 const kb = s => (Buffer.byteLength(s) / 1024).toFixed(0) + ' KB';
 console.log('dist/cartera-claude.html  ' + kb(claude));
 console.log('docs/index.html           ' + kb(html) + '  (versión ' + version + ')');
-console.log('servidor de precios       ' + (cfg.priceProxy || 'sin configurar (config.json)'));
+console.log('servidor de brokers       ' + (cfg.brokerProxy || 'sin configurar (config.json)'));

@@ -29,6 +29,7 @@
   --gain:#0f7a45; --gain-soft:rgba(15,122,69,.10); --loss:#c2302c; --loss-soft:rgba(194,48,44,.10);
   --warn:#9a6200; --warn-soft:rgba(176,116,0,.13);
   --k-stock:#2d4ed6; --k-etf:#14877f; --k-fund:#7b8cc4; --k-crypto:#c98514; --k-cash:#8b93a7; --k-other:#b3b9c6;
+  --k-t212:#5661e8; --k-tr:#b91d73;
   --glass:rgba(241,243,247,.74); --sheet:#fcfcfe; --scrim:rgba(12,16,28,.34);
   --shadow:0 1px 2px rgba(22,34,70,.05),0 6px 20px rgba(22,34,70,.06);
   --shadow-lg:0 30px 80px rgba(22,34,70,.22);
@@ -43,7 +44,7 @@
     --accent:#8197ff; --accent-soft:rgba(129,151,255,.14); --on-accent:#0b0d12;
     --gain:#3fcf8a; --gain-soft:rgba(63,207,138,.13); --loss:#ff6d66; --loss-soft:rgba(255,109,102,.13);
     --warn:#f0b54d; --warn-soft:rgba(240,181,77,.14);
-    --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475;
+    --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475; --k-t212:#8893ff; --k-tr:#e861a8;
     --glass:rgba(11,13,18,.72); --sheet:#161a22; --scrim:rgba(0,0,0,.55);
     --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
     --shadow-lg:0 30px 80px rgba(0,0,0,.6);
@@ -56,7 +57,7 @@
   --accent:#8197ff; --accent-soft:rgba(129,151,255,.14); --on-accent:#0b0d12;
   --gain:#3fcf8a; --gain-soft:rgba(63,207,138,.13); --loss:#ff6d66; --loss-soft:rgba(255,109,102,.13);
   --warn:#f0b54d; --warn-soft:rgba(240,181,77,.14);
-  --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475;
+  --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475; --k-t212:#8893ff; --k-tr:#e861a8;
   --glass:rgba(11,13,18,.72); --sheet:#161a22; --scrim:rgba(0,0,0,.55);
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
   --shadow-lg:0 30px 80px rgba(0,0,0,.6);
@@ -175,7 +176,16 @@ a.linkbtn svg.i{width:16px;height:16px}
 .r-name .tx{min-width:0}
 .r-name strong{display:block;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .r-name small{display:block;color:var(--ink-3);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.badge{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:11.5px;font-weight:650;letter-spacing:.01em;flex:none;color:var(--k);background:color-mix(in srgb,var(--k) 14%,transparent)}
+.badge{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:11.5px;font-weight:650;letter-spacing:.01em;flex:none;color:var(--k);background:color-mix(in srgb,var(--k) 14%,transparent);position:relative;overflow:hidden}
+.badge img.logo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:2px;box-sizing:border-box}
+img.logo.sm{width:26px;height:26px;border-radius:7px;object-fit:contain;background:#fff;padding:1.5px;box-sizing:border-box;flex:none}
+.simple-list .ll{display:flex;align-items:center;gap:10px;min-width:0}
+.rate-wrap{position:relative}
+.rate-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;background:var(--sheet);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);padding:6px;z-index:70;text-align:left}
+.rate-menu button{display:flex;width:100%;align-items:center;justify-content:space-between;padding:9px 12px;border:0;background:none;border-radius:9px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left}
+.rate-menu button:hover{background:var(--surface-2)}
+.rate-menu button[aria-pressed="true"]{color:var(--accent);font-weight:600}
+.rate-sep{margin:4px 8px;border-top:1px solid var(--line)}
 .r-num{font-variant-numeric:tabular-nums;font-size:14.5px;min-width:0}
 .r-num small{display:block;font-size:12.5px}
 .spark{width:92px;height:30px}
@@ -189,6 +199,7 @@ a.linkbtn svg.i{width:16px;height:16px}
 .pill.loss{background:var(--loss-soft);color:var(--loss)}
 .pill.warn{background:var(--warn-soft);color:var(--warn)}
 .pill.acc{background:var(--accent-soft);color:var(--accent)}
+.pill.src{background:var(--surface-2);color:var(--ink-2);font-size:11px;margin-right:6px}
 .simple-list{display:grid;margin:0;padding:0;list-style:none}
 .simple-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;min-width:0}
 .simple-list li + li{border-top:1px solid var(--line)}
@@ -312,6 +323,8 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
 .loading-box .spin{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--accent);border-right-color:transparent;animation:spin .7s linear infinite}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13.5px;margin:0}
 .kv dt{color:var(--ink-2)} .kv dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.qr-box{display:flex;justify-content:center;padding:16px 0}
+.qr-box img{border-radius:12px;background:#fff;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
 .links{display:flex;gap:18px;flex-wrap:wrap}
 
 /* ---------- toast */
@@ -374,7 +387,25 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
         <button role="tab" data-action="tab" data-tab="planes">Planes</button>
       </nav>
       <div class="actions">
-        <button class="btn ghost sm" data-action="refresh" id="refreshBtn" title="Actualizar precios"><svg class="i" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="hide-m" id="priceAge">Actualizar precios</span></button>
+        <div class="rate-wrap">
+          <button class="iconbtn" data-action="theme-menu" id="themeBtn" title="Tema" aria-label="Tema"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></button>
+          <div class="rate-menu" id="themeMenu" hidden>
+            <button type="button" data-action="theme-set" data-v="auto">Automático</button>
+            <button type="button" data-action="theme-set" data-v="light">Claro</button>
+            <button type="button" data-action="theme-set" data-v="dark">Oscuro</button>
+          </div>
+        </div>
+        <div class="rate-wrap">
+          <button class="btn ghost sm" data-action="refresh-rate" id="refreshRateBtn" title="Frecuencia de actualización automática"><svg class="i" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="hide-m" id="refreshRateLbl">5s</span></button>
+          <div class="rate-menu" id="rateMenu" hidden>
+            <button type="button" data-action="rate-set" data-s="5">Cada 5 s</button>
+            <button type="button" data-action="rate-set" data-s="15">Cada 15 s</button>
+            <button type="button" data-action="rate-set" data-s="30">Cada 30 s</button>
+            <button type="button" data-action="rate-set" data-s="60">Cada 60 s</button>
+            <div class="rate-sep"></div>
+            <button type="button" data-action="rate-set" data-s="0">Apagado</button>
+          </div>
+        </div>
         <button class="iconbtn" data-action="settings" aria-label="Ajustes y copia de seguridad"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
         <button class="btn primary sm" data-action="add" aria-label="Añadir"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="hide-m">Añadir</span></button>
       </div>
@@ -430,6 +461,10 @@ const MINUS = '−';
 const okNum = v => v != null && isFinite(v);
 function eur(v) { return okNum(v) ? NF.format(v).replace('-', MINUS) : '-'; }
 function eur0(v) { return okNum(v) ? NF0.format(v).replace('-', MINUS) : '-'; }
+// valor tal cual o guion si está vacío (para campos externos, p.ej. Trading 212)
+function f(v) { return (v == null || v === '') ? '—' : v; }
+// importe en euros si es número, o tal cual si viene como texto
+function money(v) { return okNum(v) ? eur(v) : f(v); }
 function seur(v) { return okNum(v) ? (v >= 0 ? '+' : MINUS) + NF.format(Math.abs(v)) : '-'; }
 function pct(v) { return okNum(v) ? (v >= 0 ? '+' : MINUS) + NP.format(Math.abs(v * 100)) + ' %' : '-'; }
 function qtyf(q) { return okNum(q) ? NQ.format(q) : '-'; }
@@ -492,7 +527,6 @@ const TYPES = {
 };
 const TYPE_ORDER = ['stock', 'etf', 'fund', 'crypto', 'other'];
 const typeOf = a => TYPES[a && a.type] ? a.type : 'other';
-const YQ = { EQUITY: 'stock', ETF: 'etf', MUTUALFUND: 'fund', CRYPTOCURRENCY: 'crypto' };
 const C = (symbol, name, type, currency, isin, exch) => ({ symbol, name, type, currency, isin, exch });
 const CATALOG = [
   C('IWDA.AS', 'iShares Core MSCI World UCITS ETF (Acc)', 'etf', 'EUR', 'IE00B4L5Y983', 'Ámsterdam'),
@@ -754,15 +788,29 @@ function cashCalc(c, endE) {
   return { bal: b, principal: p, interest: b - p, start, ser, pser, apy: apyNow };
 }
 let MEMO = null;
+/* Convierte un activo virtual de broker en una entrada "pos" equivalente a las
+   que produce calcPos(), para que el modelo y las vistas lo traten igual. */
+function brokerPos(a) {
+  const qty = a.vQty || 0;
+  const value = a.vValue != null ? a.vValue : (okNum(a.price) ? qty * a.price : 0);
+  const cost = a.vCost != null ? a.vCost : value;
+  const pnl = a.vPpl != null ? a.vPpl : value - cost;
+  return { a, qty, cost, avg: qty > 0 ? cost / qty : 0, price: a.price, value, pnl, pnlPct: cost > 0 ? pnl / cost : 0, realized: 0, day: 0, pendN: 0, estN: 0, broker: true, dayPct: null };
+}
 function model() {
   if (MEMO) return MEMO;
   const assets = all('asset'), accounts = all('cash'), plans = all('plan');
   const pos = assets.map(a => Object.assign({ a }, calcPos(a), { dayPct: (a.price > 0 && a.prev > 0) ? a.price / a.prev - 1 : null }));
+  // Posiciones de brokers (solo lectura) mezcladas en el mismo listado.
+  for (const a of t212Assets()) pos.push(brokerPos(a));
+  for (const a of trAssets()) pos.push(brokerPos(a));
   let invValue = 0, invCost = 0, invDay = 0, realized = 0, pendN = 0, estN = 0;
   const missing = new Set();
   for (const p of pos) {
     invValue += p.value; invCost += p.cost; invDay += p.day; realized += p.realized; pendN += p.pendN; estN += p.estN;
-    if (p.qty > 0 && curOf(p.a) !== 'EUR' && !fxNow(curOf(p.a))) missing.add(curOf(p.a));
+    // Las posiciones de broker vienen valoradas en EUR por el propio broker:
+    // no pedir conversión de divisa (eso causaba el aviso "Falta el tipo de cambio USD").
+    if (!p.broker && p.qty > 0 && curOf(p.a) !== 'EUR' && !fxNow(curOf(p.a))) missing.add(curOf(p.a));
   }
   const cash = accounts.map(c => Object.assign({ c }, cashCalc(c)));
   let cashTotal = 0, interest = 0, monthInt = 0, yearInt = 0;
@@ -770,7 +818,17 @@ function model() {
     cashTotal += r.bal; interest += r.interest;
     if (r.bal > 0) { monthInt += r.bal * (Math.pow(1 + r.apy / 100, 30 / 365) - 1); yearInt += r.bal * r.apy / 100; }
   }
-  const alloc = TYPE_ORDER.map(k => ({ k: TYPES[k].k, l: TYPES[k].p, v: pos.filter(p => typeOf(p.a) === k).reduce((s, p) => s + p.value, 0) }));
+  // Liquidez de los brokers (efectivo de Trading 212 y Trade Republic).
+  let t212Cash = 0, trCash = 0;
+  if (!S.demo) {
+    const tc = T.account && T.account.cash;
+    if (tc) t212Cash = (+tc.availableToTrade || 0) + (+tc.inPies || 0) + (+tc.reservedForOrders || 0);
+    trCash = (TR.cash || []).reduce((s, c) => s + (+c.amount || 0), 0);
+  }
+  cashTotal += t212Cash + trCash;
+  const alloc = TYPE_ORDER.map(k => ({ k: TYPES[k].k, l: TYPES[k].p, v: pos.filter(p => typeOf(p.a) === k && !p.broker).reduce((s, p) => s + p.value, 0) }));
+  alloc.push({ k: '--k-t212', l: 'Trading 212', v: pos.filter(p => p.broker && p.a.source === 't212').reduce((s, p) => s + p.value, 0) });
+  alloc.push({ k: '--k-tr', l: 'Trade Republic', v: pos.filter(p => p.broker && p.a.source === 'tr').reduce((s, p) => s + p.value, 0) });
   alloc.push({ k: '--k-cash', l: 'Liquidez', v: cashTotal });
   const invPnl = invValue - invCost;
   const hasDay = pos.some(p => p.qty > 0 && p.a.prev > 0);
@@ -778,7 +836,8 @@ function model() {
     assets, accounts, plans, pos, cash, invValue, invCost, invPnl, invPct: invCost > 0 ? invPnl / invCost : 0,
     invDay, invDayPct: (invValue - invDay) > 0 ? invDay / (invValue - invDay) : 0, hasDay, realized, pendN, estN,
     missingFx: Array.from(missing), cashTotal, interest, monthInt, yearInt, net: invValue + cashTotal,
-    totalGain: invPnl + realized + interest, alloc, any: !!(assets.length || accounts.length || plans.length)
+    t212Cash, trCash, brokerCash: t212Cash + trCash,
+    totalGain: invPnl + realized + interest, alloc, any: !!(assets.length || accounts.length || plans.length || pos.length)
   };
   return MEMO;
 }
@@ -947,230 +1006,289 @@ function upcoming(days) {
 }
 
 /* =========================================================
-   Precios online: Yahoo Finance a través del navegador de Claude (versión Claude)
-   o de tu servidor de precios en Cloudflare (versión web)
+   Brokers (solo lectura): Trading 212 y Trade Republic a través
+   de tu servidor en Cloudflare. Trading 212 se guarda en local
+   (localStorage) y se reutiliza sin conexión.
    ========================================================= */
-const B = { mcp: null, checked: false, tabId: null, busy: false, proxy: '', cfgProxy: '', autoWarned: false };
-const LS_PROXY = 'cartera.proxy.v1';
-const online = () => !S.demo && !!(B.mcp || B.proxy);
+const B = { proxy: '', cfgProxy: '', checked: false };
+const LS_PROXY = 'cartera.broker.v1';
+const LS_T212 = 'cartera.t212.v1';
+const LS_TR = 'cartera.tr.v1';
+const brokersReady = () => STANDALONE && !S.demo && !!B.proxy;
+
 function cleanProxy(u) {
   u = String(u || '').trim().replace(/\/+$/, '');
   if (!u) return '';
   if (/^https:\/\/[^\s/]+/i.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(u)) return u;
   return '';
 }
-function searchHelp() {
-  if (S.demo) return 'En el ejemplo se busca solo en las sugerencias.';
-  if (B.mcp) return 'Busca en Yahoo Finance con el navegador de Claude. La primera vez te pedirá permiso.';
-  if (B.proxy) return 'Busca en Yahoo Finance a través de tu servidor de precios.';
-  if (!B.checked) return 'Comprobando acceso a precios online...';
-  return STANDALONE ? 'Sin servidor de precios configurado: elige una sugerencia o añádelo a mano. Puedes activarlo en Ajustes.' : 'Aquí no hay acceso a precios online. Elige una sugerencia o añádelo a mano; desde el escritorio se actualizará.';
-}
-function onlineUI() {
-  const rb = $('#refreshBtn'); if (rb && STANDALONE) rb.hidden = !B.proxy;
-  renderTop(); scheduleRender();
-  const sf = $('form[data-form="search"]');
-  if (sf) {
-    const b = sf.querySelector('button[type="submit"]'); if (b) b.textContent = online() ? 'Buscar online' : 'Buscar';
-    const hp = sf.querySelector('.help'); if (hp) hp.textContent = searchHelp();
-  }
-  const top = SH.stack[SH.stack.length - 1];
-  if (SH.open && top && top.fn === shSettings) paintSheet(false); else refreshOpenSheet(true);
-}
-function autoRefresh() {
-  if (!STANDALONE || !B.proxy || S.demo || S.mode !== 'local' || B.busy) return;
-  const st = settings();
-  if (st.pricesAt && Date.now() - st.pricesAt < 20 * 60000) return;
-  if (!all('asset').some(a => a.symbol)) return;
-  refreshPrices({ auto: true });
-}
-const BS = 'host:claude_browser';
-const YH = 'https://query1.finance.yahoo.com';
-async function initBrowser() {
-  if (STANDALONE) {
-    let cfg = null;
-    try { const r = await fetch('config.json', { cache: 'no-cache' }); if (r.ok) cfg = await r.json(); } catch (e) { /* sin config.json */ }
-    B.cfgProxy = cleanProxy(cfg && cfg.priceProxy);
-    const own = lsGet(LS_PROXY);
-    B.proxy = own && typeof own.url === 'string' ? cleanProxy(own.url) : B.cfgProxy;
-    B.checked = true;
-    diag('precios online: ' + (B.proxy ? 'servidor ' + B.proxy.replace(/^https?:\/\//, '') : 'sin servidor configurado'));
-    onlineUI(); autoRefresh();
-    return;
-  }
-  try { B.mcp = (window.claude && typeof window.claude.use === 'function') ? await window.claude.use('mcp') : null; }
-  catch (e) { B.mcp = null; }
+async function initBrokers() {
+  if (!STANDALONE) { B.checked = true; return; }
+  let cfg = null;
+  try { const r = await fetch('config.json', { cache: 'no-cache' }); if (r.ok) cfg = await r.json(); } catch (e) { /* sin config.json */ }
+  B.cfgProxy = cleanProxy(cfg && cfg.brokerProxy);
+  const own = lsGet(LS_PROXY);
+  B.proxy = own && typeof own.url === 'string' ? cleanProxy(own.url) : B.cfgProxy;
   B.checked = true;
-  diag('precios online: ' + (B.mcp ? 'disponibles' : 'no disponibles aquí'));
-  onlineUI();
+  diag('brokers: ' + (B.proxy ? 'servidor ' + B.proxy.replace(/^https?:\/\//, '') : 'sin servidor configurado'));
+  renderBrokers();
 }
-function textOf(r) {
-  const p = r && typeof r === 'object' && 'payload' in r ? r.payload : r;
-  if (p == null) return '';
-  if (typeof p === 'string') return p;
-  if (Array.isArray(p)) return p.map(x => typeof x === 'string' ? x : (x && x.text) || '').join('\n');
-  if (Array.isArray(p.content)) return p.content.map(x => (x && x.text) || '').join('\n');
-  if (typeof p.text === 'string') return p.text;
-  return JSON.stringify(p);
-}
-function jsonFrom(t) {
-  let s = String(t || '');
-  const k = s.indexOf('\n---\n'); if (k >= 0) s = s.slice(k + 5);
-  const tc = s.lastIndexOf('Tab Context:'); if (tc > 0) s = s.slice(0, tc);
-  const a = s.indexOf('{'), b = s.lastIndexOf('}');
-  if (a < 0 || b <= a) throw new Error('Yahoo Finance no devolvió datos');
-  return JSON.parse(s.slice(a, b + 1));
-}
-async function proxyJSON(url) {
-  const target = B.proxy + url.slice(YH.length);
+
+/* ---------- Conexión genérica al servidor de brokers ---------- */
+async function brokerFetch(path, opts) {
+  opts = opts || {};
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-  const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 20000);
+  const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 25000);
   let r, txt;
   try {
-    r = await fetch(target, ctrl ? { signal: ctrl.signal } : {});
+    r = await fetch(B.proxy + path, Object.assign({ signal: ctrl ? ctrl.signal : undefined }, opts.init || {}));
     txt = await r.text();
   } catch (e) {
-    const er = new Error('sin respuesta'); er.code = 'proxy_unreachable'; throw er;
+    const er = new Error('sin respuesta'); er.code = 'broker_unreachable'; throw er;
   } finally { clearTimeout(timer); }
+  let j = null;
+  try { j = JSON.parse(txt); } catch (e) { /* no JSON */ }
   if (!r.ok) {
-    let msg = 'error ' + r.status;
-    try { const j = JSON.parse(txt); msg = (j && j.chart && j.chart.error && j.chart.error.description) || (j && j.error) || msg; } catch (e) { /* no es JSON */ }
-    const er = new Error(msg); er.code = r.status === 403 ? 'proxy_origin' : r.status === 429 ? 'rate_limited' : 'proxy_http'; er.status = r.status; throw er;
+    const er = new Error((j && j.error) || 'error ' + r.status); er.code = (j && j.code) || 'broker_http'; er.status = r.status; throw er;
   }
-  try { return JSON.parse(txt); } catch (e) { throw new Error('respuesta no válida del servidor de precios'); }
+  if (j && j.code) { const er = new Error(j.error); er.code = j.code; er.status = r.status; throw er; }
+  return j;
 }
-async function webJSON(url) {
-  if (!B.mcp && B.proxy) return proxyJSON(url);
-  if (!B.mcp) { const e = new Error('Sin navegador'); e.code = 'no_browser'; throw e; }
-  if (B.tabId) {
-    try { await B.mcp.callTool(BS, 'navigate', { url, tabId: B.tabId }); }
-    catch (e) {
-      diag('navigate falló: ' + (e && (e.code || e.message)));
-      if (e && /grant|denied|consent|permission/i.test(String(e.code || ''))) throw e;
-      B.tabId = null;
-    }
-  }
-  if (!B.tabId) {
-    const r = await B.mcp.callTool(BS, 'preview_start', { url });
-    const p = r && r.payload;
-    const m = textOf(r).match(/"?tabId"?\s*[:=]\s*"?([\w-]+)/);
-    B.tabId = (p && typeof p === 'object' && p.tabId) || (m && m[1]) || null;
-    diag('pestaña del navegador: ' + (B.tabId || 'activa'));
-  }
-  const args = { max_chars: 900000 };
-  if (B.tabId) args.tabId = B.tabId;
-  const g = await B.mcp.callTool(BS, 'get_page_text', args);
-  return jsonFrom(textOf(g));
+function brokerErr(e) {
+  const c = String(e && e.code || '');
+  if (c === 'broker_unreachable') return 'El servidor de brokers no responde. Revisa la dirección en Ajustes o tu conexión.';
+  if (c === 't212_unconfigured') return 'Trading 212 no está configurado. Revisa T212_KEY y T212_SECRET en Cloudflare.';
+  if (e && e.status === 401) return 'Las credenciales no son válidas. Revisa la configuración en Cloudflare.';
+  if (e && e.status === 429) return 'Demasiadas consultas. Prueba en un minuto.';
+  return 'No pude leer el broker' + (e && e.message ? ': ' + e.message : '.');
 }
-function compactHist(ts, cl) {
-  const t = [], c = [];
-  for (let i = 0; i < (ts || []).length; i++) {
-    const v = cl[i];
-    if (v == null || !isFinite(v) || v <= 0) continue;
-    const e = Math.floor(ts[i] / 86400);
-    if (t.length && t[t.length - 1] === e) { c[c.length - 1] = sig(v); continue; }
-    if (t.length && e < t[t.length - 1]) continue;
-    t.push(e); c.push(sig(v));
-  }
-  return { t, c };
+
+/* ---------- Trading 212 ---------- */
+const T = { state: 'idle', err: '', account: null, positions: null, at: null, nextRetry: 0 };
+function t212CacheLoad() {
+  const c = lsGet(LS_T212);
+  if (c && c.account) { T.account = c.account; T.positions = c.positions || null; T.at = c.at || null; T.state = 'cached'; }
 }
-async function ySearch(q) {
-  const j = await webJSON(YH + '/v1/finance/search?q=' + encodeURIComponent(q) + '&quotesCount=12&newsCount=0&listsCount=0');
-  return (j.quotes || []).filter(x => x.symbol).map(x => ({
-    symbol: x.symbol, name: x.longname || x.shortname || x.symbol, type: YQ[x.quoteType] || 'other', exch: x.exchDisp || x.exchange || ''
-  }));
+function t212CacheSave() {
+  lsSet(LS_T212, { account: T.account, positions: T.positions, at: Date.now() });
 }
-function parseChart(j) {
-  const r = j && j.chart && j.chart.result && j.chart.result[0];
-  if (!r) throw new Error((j && j.chart && j.chart.error && j.chart.error.description) || 'Yahoo no tiene datos de ese ticker');
-  const m = r.meta || {};
-  const hist = compactHist(r.timestamp || [], (r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close) || []);
-  const n = hist.c.length;
-  const price = m.regularMarketPrice || (n ? hist.c[n - 1] : null);
-  const prev = n >= 2 ? hist.c[n - 2] : (m.chartPreviousClose || null);
-  return { currency: m.currency || 'EUR', price, prev, hist, name: m.longName || m.shortName || '' };
-}
-async function yChart(sym) { return parseChart(await webJSON(YH + '/v8/finance/chart/' + encodeURIComponent(sym) + '?range=1y&interval=1d')); }
-async function ySpark(syms) {
-  const j = await webJSON(YH + '/v8/finance/spark?symbols=' + syms.map(encodeURIComponent).join(',') + '&range=1y&interval=1d');
-  const out = {};
-  for (const s of syms) {
-    const r = j[s] || j[s.toUpperCase()];
-    if (!r || !r.timestamp) continue;
-    const hist = compactHist(r.timestamp, r.close || []);
-    const n = hist.c.length; if (!n) continue;
-    out[s] = { hist, price: hist.c[n - 1], prev: n > 1 ? hist.c[n - 2] : (r.chartPreviousClose || null) };
-  }
-  return out;
-}
-function browserErr(e) {
-  const c = String(e && e.code || ''), m = String(e && e.message || e || '');
-  if (c === 'no_browser') return STANDALONE ? 'Configura tu servidor de precios en Ajustes para buscar online.' : 'Los precios online solo funcionan en la app de escritorio de Claude.';
-  if (c === 'proxy_unreachable') return 'Tu servidor de precios no responde. Revisa la dirección en Ajustes o tu conexión a internet.';
-  if (c === 'proxy_origin') return 'Tu servidor de precios no acepta esta web. Añade ' + location.origin + ' a ALLOWED_ORIGINS en Cloudflare.';
-  if (c === 'proxy_http' && e.status === 404) return 'Yahoo Finance no tiene ese ticker (' + m + ').';
-  if (c === 'proxy_http') return 'Tu servidor de precios devolvió un error: ' + m + '.';
-  if (/grant|denied|consent|permission/i.test(c)) return 'Hace falta tu permiso para usar el navegador de Claude. Puedes darlo en los permisos de esta página.';
-  if (/not_connected|unavailable/i.test(c)) return 'El navegador de Claude no está disponible aquí. Ábrela en la app de escritorio.';
-  if (/rate/i.test(c)) return 'Demasiadas consultas seguidas. Prueba en un minuto.';
-  return 'No pude leer Yahoo Finance' + (m ? ': ' + m : '.');
-}
-async function refreshPrices(opts) {
-  opts = opts || {};
-  if (S.demo) return opts.auto ? 0 : toast('En el ejemplo los precios son inventados y no se actualizan.');
-  if (!online()) return opts.auto ? 0 : toast(STANDALONE ? 'Configura tu servidor de precios en Ajustes para traer cotizaciones. Mientras, pon el precio a mano en la ficha de cada activo.' : B.checked ? 'Los precios online se traen desde la app de escritorio de Claude. En el móvil puedes poner el precio a mano en cada activo.' : 'Conectando con el navegador de Claude...');
-  if (B.busy) return;
-  const assets = all('asset').filter(a => a.symbol);
-  if (!assets.length) return opts.auto ? 0 : toast('Ningún activo tiene ticker de Yahoo. Puedes añadirlo en la ficha de cada activo.');
-  B.busy = true; renderTop();
+async function loadT212(silent) {
+  if (AR.t212) return;
+  if (!brokersReady()) { T.err = 'Primero configura el servidor de brokers en Ajustes.'; T.state = 'err'; renderBrokers(); return; }
+  if (T.nextRetry && Date.now() < T.nextRetry) return; // esperando tras un 429
+  AR.t212 = true;
+  if (!silent) { T.state = 'busy'; T.err = ''; renderBrokers(); }
   try {
-    const res = {};
-    const check = assets.filter(a => a.curCheck);
-    for (const a of check.slice(0, 4)) { try { res[a.symbol] = await yChart(a.symbol); } catch (e) { diag('sin datos ' + a.symbol); } }
-    const curs = new Set(assets.filter(a => !a.curCheck || res[a.symbol]).map(a => res[a.symbol] && res[a.symbol].currency ? (res[a.symbol].currency === 'GBp' ? 'GBP' : res[a.symbol].currency) : curOf(a)));
-    curs.delete('EUR');
-    const fxSyms = Array.from(curs).map(c => c + 'EUR=X');
-    const syms = Array.from(new Set(assets.map(a => a.symbol))).filter(s => !res[s]).concat(fxSyms);
-    for (let i = 0; i < syms.length; i += 15) Object.assign(res, await ySpark(syms.slice(i, i + 15)));
-    for (const s of syms.filter(x => !res[x]).slice(0, 6)) { try { res[s] = await yChart(s); } catch (e) { diag('sin datos ' + s); } }
-    const st = clone(settings()); st.fx = st.fx || {}; st.fxHist = st.fxHist || {};
-    for (const c of curs) { const r = res[c + 'EUR=X']; if (r) { st.fx[c] = r.price; st.fxHist[c] = r.hist; } }
-    st.pricesAt = Date.now();
-    put(st, true);
-    let n = 0; const failed = [];
-    for (const a0 of assets) {
-      const r = res[a0.symbol];
-      if (!r) { failed.push(a0.name); continue; }
-      const a = clone(a0);
-      if (r.currency) { a.currency = r.currency; delete a.curCheck; }
-      a.price = r.price; a.prev = r.prev; a.hist = r.hist; a.priceAt = Date.now();
-      refineTxs(a); put(a, true); n++;
-    }
-    scheduleRender();
-    if (!opts.auto || failed.length) toast(failed.length ? 'Actualizados ' + n + ' de ' + assets.length + '. Sin datos: ' + failed.slice(0, 2).join(', ') : 'Precios actualizados');
+    const [account, positions] = await Promise.all([brokerFetch('/t212/account'), brokerFetch('/t212/positions')]);
+    T.account = account; T.positions = positions; T.at = Date.now(); T.state = 'ok'; T.err = '';
+    t212CacheSave();
+    if (!silent) toast('Trading 212 actualizado y guardado en este dispositivo');
   } catch (e) {
-    diag('actualizar: ' + (e && (e.code || '')) + ' ' + (e && e.message || e));
-    if (!opts.auto || !B.autoWarned) { B.autoWarned = true; toast(browserErr(e)); }
-  } finally { B.busy = false; renderTop(); refreshOpenSheet(); }
+    if (e && e.status === 429) { T.nextRetry = Date.now() + 15000; diag('trading212: límite de peticiones, espero un poco'); }
+    else { if (T.account) T.state = 'cached'; else T.state = 'err'; }
+    T.err = brokerErr(e);
+  } finally { AR.t212 = false; }
+  renderBrokers();
 }
-async function fillHistory(id, quiet) {
-  const a0 = D().get(id);
-  if (!a0 || !a0.symbol || !online()) return 0;
-  const pend = (a0.txs || []).filter(t => t.auto && (t.pending || t.est));
-  if (!pend.length) return 0;
-  const eds = pend.map(t => toEd(t.date));
-  const from = Math.min.apply(null, eds) - 7, to = Math.max.apply(null, eds) + 1;
-  const interval = (to - from) > 700 ? '1wk' : '1d';
-  const c = parseChart(await webJSON(YH + '/v8/finance/chart/' + encodeURIComponent(a0.symbol) + '?period1=' + (from * 86400) + '&period2=' + ((to + 1) * 86400) + '&interval=' + interval));
-  const a = clone(a0); let n = 0;
-  for (const t of a.txs) {
-    if (!t.auto || !(t.pending || t.est)) continue;
-    const e = toEd(t.date); const i = lastLE(c.hist.t, e);
-    if (i >= 0) { setTxPrice(t, c.hist.c[i] * mulOf(a) * (fxOn(curOf(a), e) || 1)); n++; }
+
+/* ---------- Trade Republic (servidor local) ---------- */
+const TR = { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, at: null, localUrl: '' };
+const LS_TR_URL = 'cartera.tr.url.v1';
+const AR = { t212: false, tr: false };
+function trLocal() { return cleanProxyLocal(TR.localUrl); }
+function cleanProxyLocal(u) {
+  u = String(u || '').trim().replace(/\/+$/, '');
+  if (!u) return '';
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(u) || /^https:\/\//i.test(u)) return u;
+  return '';
+}
+function trCacheLoad() {
+  const c = lsGet(LS_TR);
+  if (c && c.positions) { TR.positions = c.positions; TR.cash = c.cash || null; TR.plans = c.plans || null; TR.at = c.at || null; TR.state = 'cached'; }
+  const u = lsGet(LS_TR_URL);
+  if (u && typeof u.url === 'string') TR.localUrl = u.url;
+}
+function trCacheSave() { lsSet(LS_TR, { positions: TR.positions, cash: TR.cash, plans: TR.plans, at: Date.now() }); }
+async function trFetch(path, opts) {
+  const base = trLocal();
+  if (!base) { const er = new Error('Configura la dirección del servidor local de Trade Republic en Ajustes.'); er.code = 'tr_no_url'; throw er; }
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 30000);
+  let r, txt;
+  try {
+    r = await fetch(base + path, Object.assign({ signal: ctrl ? ctrl.signal : undefined }, opts && opts.init || {}));
+    txt = await r.text();
+  } catch (e) { const er = new Error('El servidor local de Trade Republic no responde.'); er.code = 'tr_unreachable'; throw er; }
+  finally { clearTimeout(timer); }
+  let j = null;
+  try { j = JSON.parse(txt); } catch (e) { j = null; }
+  if (!r.ok) { const er = new Error((j && j.error) || 'error ' + r.status); er.code = (j && j.code) || 'tr_http'; er.status = r.status; throw er; }
+  if (j && j.code) { const er = new Error(j.error); er.code = j.code; er.status = r.status; throw er; }
+  return j;
+}
+function trErr(e) {
+  const c = String(e && e.code || '');
+  if (c === 'tr_no_url') return 'Configura la dirección del servidor local de Trade Republic en Ajustes (sección "Servidor local de Trade Republic").';
+  if (c === 'tr_unreachable') return 'El servidor local de Trade Republic no responde. ¿Está arrancado? Ejecuta "cd tr-server && bun server.mjs" en tu PC.';
+  if (c === 'tr_pending') return 'Escanea y confirma el código QR en la app de Trade Republic.';
+  if (c === 'tr_login') return (e && e.message) || 'No hay sesión de Trade Republic. Vincula con el QR primero.';
+  return 'No pude leer Trade Republic' + (e && e.message ? ': ' + e.message : '.');
+}
+async function trLogin() {
+  if (!trLocal()) { TR.err = trErr({ code: 'tr_no_url' }); TR.state = 'err'; renderBrokers(); return; }
+  TR.state = 'busy'; TR.err = ''; TR.qr = null; renderBrokers();
+  try {
+    await trFetch('/login', { init: { method: 'POST' } });
+    // Poll del payload del QR hasta que esté disponible.
+    TR.state = 'qr';
+    for (let i = 0; i < 20 && !TR.qr; i++) {
+      const s = await trFetch('/qr');
+      if (s && s.qrPayload) TR.qr = s.qrPayload;
+      if (!TR.qr) await new Promise(r => setTimeout(r, 700));
+    }
+    if (!TR.qr) { TR.err = 'No llegó el código QR. Reintenta.'; TR.state = 'err'; }
+  } catch (e) { TR.err = trErr(e); TR.state = 'err'; }
+  renderBrokers();
+}
+async function trLoad() {
+  if (!trLocal()) { TR.err = trErr({ code: 'tr_no_url' }); TR.state = 'err'; renderBrokers(); return; }
+  TR.state = 'busy'; TR.err = ''; renderBrokers();
+  await trFetchPortfolio(false);
+  renderBrokers();
+}
+/* ---------- Precio de criptos (CoinGecko, sin clave) ---------- */
+/* Trade Republic no sirve precio de las criptos por WebSocket: se deriva el
+   símbolo del ISIN (XF000BTC0017 -> BTC) y se pide el precio a CoinGecko. */
+const CG_MAP = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', XRP: 'ripple', ADA: 'cardano', LTC: 'litecoin', DOT: 'polkadot', DOGE: 'dogecoin', LINK: 'chainlink', AVAX: 'avalanche-2', MATIC: 'matic-network', POL: 'polygon-ecosystem-token', ATOM: 'cosmos', BCH: 'bitcoin-cash', XLM: 'stellar', ALGO: 'algorand', NEAR: 'near', FTM: 'fantom', UNI: 'uniswap', AAVE: 'aave', TRX: 'tron', EOS: 'eos', FIL: 'filecoin' };
+function trCryptoSymbol(isin) {
+  if (!/^XF/i.test(String(isin || ''))) return null;
+  const t = String(isin).slice(5, 8);
+  return /^[A-Z]{3}$/.test(t) ? t : null;
+}
+function isCryptoLike(p) {
+  return /crypto/i.test(String(p.instrumentType || '')) || /^XF/i.test(String(p.isin || ''));
+}
+async function trCryptoPrice(sym) {
+  const id = CG_MAP[sym] || String(sym).toLowerCase();
+  try {
+    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=' + encodeURIComponent(id) + '&vs_currencies=eur');
+    if (!r.ok) return null;
+    const j = await r.json();
+    const v = j && j[id] && j[id].eur;
+    return typeof v === 'number' ? v : null;
+  } catch (e) { return null; }
+}
+/* Rellena precio/valor/P/L de las criptos que TR no cotiza. */
+async function trFillCryptoPrices(positions) {
+  for (const p of positions || []) {
+    if (!isCryptoLike(p) || okNum(p.currentPrice)) continue;
+    const sym = trCryptoSymbol(p.isin);
+    if (!sym) continue;
+    const px = await trCryptoPrice(sym);
+    if (px == null) continue;
+    p.currentPrice = px;
   }
-  put(a);
-  if (!quiet) toast(n ? 'Precio completado en ' + n + (n === 1 ? ' aportación' : ' aportaciones') : 'Yahoo no tiene precios para esas fechas');
-  return n;
+  for (const p of positions || []) {
+    if (!isCryptoLike(p) || !okNum(p.currentPrice)) continue;
+    const qty = Number(p.netSize || 0);
+    p.value = p.currentPrice * qty;
+    if (okNum(p.invested)) p.ppl = p.value - Number(p.invested);
+  }
+}
+async function trFetchPortfolio(silent) {
+  if (AR.tr) return null;
+  AR.tr = true;
+  try {
+    const j = await trFetch('/portfolio');
+    await trFillCryptoPrices(j.positions);
+    TR.positions = j.positions || []; TR.cash = j.cash || null; TR.plans = j.plans || null; TR.at = Date.now(); TR.state = 'ok'; TR.err = '';
+    trCacheSave();
+    if (!silent) toast('Trade Republic actualizado y guardado en este dispositivo');
+    return j;
+  } catch (e) {
+    if (TR.positions) { TR.state = 'cached'; } else { TR.state = 'err'; }
+    TR.err = trErr(e);
+    return null;
+  } finally { AR.tr = false; }
+}
+async function trCheck() {
+  try {
+    const s = await trFetch('/status');
+    if (s && s.status === 'connected') { TR.state = 'ok'; await trFetchPortfolio(true); }
+    else if (s && s.status === 'pending') { /* sigue esperando el QR */ TR.state = 'qr'; }
+    else { TR.err = s && s.error ? s.error : 'Aún no confirmado.'; TR.state = 'err'; }
+  } catch (e) { TR.err = trErr(e); TR.state = 'err'; }
+  renderBrokers();
+}
+async function trLoadSilent() {
+  // Solo refresca si hay sesión; si aún no hay QR no insiste.
+  if (!(TR.state === 'ok' || TR.state === 'cached')) return;
+  await trFetchPortfolio(true);
+  renderBrokers();
+}
+
+/* ---------- Actualización automática ---------- */
+async function autoRefreshNow() {
+  if (!STANDALONE || S.demo || UI.refresh <= 0) return;
+  if (B.proxy && !AR.t212 && !(T.nextRetry && Date.now() < T.nextRetry)) await loadT212(true);
+  if (trLocal() && !AR.tr) await trLoadSilent();
+}
+function renderRateBtn() {
+  const b = $('#refreshRateBtn');
+  if (!b) return;
+  b.hidden = !STANDALONE;
+  b.title = 'Frecuencia de actualización automática';
+  const l = $('#refreshRateLbl');
+  if (l) l.textContent = UI.refresh > 0 ? UI.refresh + 's' : 'Off';
+  for (const o of $$('#rateMenu [data-action="rate-set"]')) o.setAttribute('aria-pressed', String(+o.dataset.s === UI.refresh));
+}
+function renderThemeMenu() {
+  for (const o of $$('#themeMenu [data-action="theme-set"]')) o.setAttribute('aria-pressed', String(o.dataset.v === UI.theme));
+}
+
+/* ---------- Tema (automático / claro / oscuro) ---------- */
+function applyTheme() {
+  const r = document.documentElement;
+  if (UI.theme === 'dark') r.setAttribute('data-theme', 'dark');
+  else if (UI.theme === 'light') r.setAttribute('data-theme', 'light');
+  else r.removeAttribute('data-theme');
+}
+
+/* ---------- Logos por ISIN (Wikidata: P946 = ISIN, P154 = logo oficial) ---------- */
+function logoCacheLoad() {
+  const c = lsGet(LS_LOGOS);
+  if (c && c.list && typeof c.list === 'object') LOGOS.map = c.list;
+}
+async function logoLookup(isin) {
+  const key = String(isin || '').trim().toUpperCase();
+  if (!key) return;
+  if (LOGOS.map[key] != null || LOGOS.pending.has(key)) return;
+  LOGOS.pending.add(key);
+  let url = '';
+  try {
+    const q = 'SELECT ?logo WHERE { ?item wdt:P946 "' + key + '" . ?item wdt:P154 ?logo . } LIMIT 6';
+    const u = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(q);
+    const r = await fetch(u, { headers: { 'User-Agent': 'cartera/1.0 (local)' } });
+    const j = await r.json();
+    const logos = ((j && j.results && j.results.bindings) || []).map(b => b.logo && b.logo.value).filter(Boolean);
+    const pick = logos.find(l => !/white/i.test(l)) || logos[0];
+    if (pick) {
+      const m = pick.split('Special:FilePath/')[1];
+      const fname = m ? decodeURIComponent(m) : '';
+      if (fname) url = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fname) + '?width=128';
+    }
+  } catch (e) { url = ''; }
+  LOGOS.map[key] = url;
+  lsSet(LS_LOGOS, { list: LOGOS.map });
+  scheduleRender();
+}
+function applyLogos() {
+  for (const img of $$('img.logo[data-isin]')) {
+    const isin = String(img.dataset.isin || '').trim().toUpperCase();
+    if (!isin) { img.remove(); continue; }
+    if (LOGOS.map[isin] != null) { if (LOGOS.map[isin]) img.src = LOGOS.map[isin]; else img.remove(); }
+    else logoLookup(isin);
+  }
 }
 
 /* =========================================================
@@ -1217,8 +1335,13 @@ function demoDocs() {
    Estado de interfaz
    ========================================================= */
 const TABS = ['resumen', 'inversiones', 'liquidez', 'planes'];
-const UI = { tab: 'resumen', range: 182, filter: 'all', sort: 'value', histCache: null };
-const AD = { tab: 'inv', q: '', online: null, lastQ: '', searching: false, err: '', mine: [], cat: [], cashMode: null };
+const UI = { tab: 'resumen', range: 182, filter: 'all', sort: 'value', histCache: null, refresh: 5, theme: 'auto' };
+const AUTO_OPTS = [5, 15, 30, 60, 0];
+const LS_AUTOREFRESH = 'cartera.autoRefresh.v1';
+const LS_THEME = 'cartera.theme.v1';
+const LS_LOGOS = 'cartera.logos.v1';
+const LOGOS = { map: {}, pending: new Set() };
+const AD = { tab: 'inv', q: '', mine: [], cat: [], cashMode: null };
 function saveUI() { lsSet(LS_UI, { tab: UI.tab, range: UI.range, filter: UI.filter, sort: UI.sort }); }
 function setTab(t) {
   if (!TABS.includes(t)) return;
@@ -1254,11 +1377,8 @@ function render(anim) {
 }
 function renderTop() {
   for (const b of $$('[role="tab"][data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === UI.tab));
-  const st = settings();
-  const age = $('#priceAge');
-  if (age) age.textContent = B.busy ? 'Actualizando...' : st.pricesAt ? 'Precios ' + ago(st.pricesAt) : 'Actualizar precios';
-  const rb = $('#refreshBtn');
-  if (rb) { rb.disabled = B.busy; rb.title = online() ? 'Actualizar precios desde Yahoo Finance' : STANDALONE ? 'Configura tu servidor de precios en Ajustes' : 'Precios online: solo en la app de escritorio de Claude'; }
+  renderRateBtn();
+  renderThemeMenu();
   setSync();
 }
 function renderBanner() {
@@ -1270,8 +1390,8 @@ function renderBanner() {
   else if (S.mode === 'local' && !lsGet('cartera.bannerOk')) h = '<div class="banner-in"><span>Tus datos se guardan en este dispositivo. Haz una copia de seguridad de vez en cuando desde Ajustes.</span><button class="btn sm ghost" data-action="banner-ok">Entendido</button></div>';
   else if (S.mode === 'db' || S.mode === 'cache' || S.mode === 'local') {
     const M = model();
-    if (M.pendN) h = '<div class="banner-in warn"><span>' + (M.pendN === 1 ? 'Hay 1 aportación' : 'Hay ' + M.pendN + ' aportaciones') + ' sin precio todavía. Se valoran a coste hasta tenerlo.</span>' + (online() ? '<button class="btn sm ghost" data-action="fill-all">Buscar precios</button>' : '') + '</div>';
-    else if (M.missingFx.length) h = '<div class="banner-in warn"><span>Falta el tipo de cambio ' + esc(M.missingFx.join(', ')) + ' a euros. ' + (STANDALONE && !B.proxy ? 'Pon el precio en euros en la ficha del activo o configura tu servidor de precios en Ajustes.' : STANDALONE ? 'Actualiza precios o pon el precio en euros en la ficha del activo.' : 'Actualiza precios desde el escritorio o pon el precio en euros en la ficha del activo.') + '</span></div>';
+    if (M.pendN) h = '<div class="banner-in warn"><span>' + (M.pendN === 1 ? 'Hay 1 aportación' : 'Hay ' + M.pendN + ' aportaciones') + ' sin precio todavía. Se valoran a coste hasta tenerlo.</span></div>';
+    else if (M.missingFx.length) h = '<div class="banner-in warn"><span>Falta el tipo de cambio ' + esc(M.missingFx.join(', ')) + ' a euros. Pon el precio en euros en la ficha del activo.</span></div>';
   }
   b.innerHTML = h ? '<div class="banner">' + h + '</div>' : '';
 }
@@ -1284,7 +1404,7 @@ function emptyState() {
     '<p>Apunta acciones, ETFs, fondos y cripto con su precio y fecha de compra, añade tus cuentas remuneradas con su TAE y deja que los planes mensuales se apunten solos.</p>' +
     '<div class="btns"><button class="btn primary" data-action="add-inv">Añadir inversión</button><button class="btn ghost" data-action="add-cash">Añadir liquidez</button><button class="btn ghost" data-action="demo-on">Ver un ejemplo</button></div>' +
     '<div class="feat">' +
-    (STANDALONE && !B.proxy ? '<div><b>Funciona sin conexión</b><span>Instalada en la pantalla de inicio abre al momento, con o sin internet.</span></div>' : '<div><b>Precios online</b><span>Busca por nombre, ticker o ISIN y trae la cotización de Yahoo Finance.</span></div>') +
+    (STANDALONE && B.proxy ? '<div><b>Brokers en solo lectura</b><span>Consulta tu cuenta de Trading 212 y Trade Republic.</span></div>' : '<div><b>Funciona sin conexión</b><span>Instalada en la pantalla de inicio abre al momento, con o sin internet.</span></div>') +
     '<div><b>Planes automáticos</b><span>Elige importe y días del mes. Cada aportación se apunta sola.</span></div>' +
     '<div><b>Liquidez con intereses</b><span>Saldo, TAE e intereses generados día a día.</span></div>' +
     '</div></section>';
@@ -1323,7 +1443,7 @@ function vResumen(M) {
       '</div>' +
     '</section>' +
     '<section class="grid2">' +
-      '<div class="panel"><div class="sec-head"><h3>Próximas aportaciones</h3><button class="linkbtn" data-action="tab" data-tab="planes">Ver planes</button></div>' + upcomingHTML() + '</div>' +
+      '<div class="panel"><div class="sec-head"><h3>Planes de ahorro</h3><button class="linkbtn" data-action="tab" data-tab="planes">Ver planes</button></div>' + upcomingHTML() + '</div>' +
       '<div class="panel"><div class="sec-head"><h3>Mayores posiciones</h3><button class="linkbtn" data-action="tab" data-tab="inversiones">Ver todas</button></div>' + topHTML(M) + '</div>' +
     '</section>' +
   '</div>';
@@ -1336,15 +1456,28 @@ function allocHTML(M) {
     '<ul class="alloc-list">' + rows.map(r => '<li><span class="sw" style="background:var(' + r.k + ')"></span><span>' + esc(r.l) + '</span><span class="num">' + eur0(r.v) + '</span><span class="pc num">' + NP.format(r.v / tot * 100) + ' %</span></li>').join('') + '</ul>';
 }
 function upcomingHTML() {
-  const list = upcoming(45).slice(0, 6);
-  if (!all('plan').length) return '<p class="empty-small">Sin planes mensuales. <button class="linkbtn" data-action="add-plan">Crear un plan</button></p>';
-  if (!list.length) return '<p class="empty-small">Ninguna aportación en los próximos 45 días.</p>';
-  return '<ul class="simple-list">' + list.map(x => '<li><div class="l"><strong>' + esc(x.tgt.name) + '</strong><small>' + datef(fromEd(x.ed)) + '</small></div><div class="r num">' + eur(x.p.amount) + '</div></li>').join('') + '</ul>';
+  // Planes de ahorro de Trade Republic (no hay planes manuales).
+  const plans = TR.plans || [];
+  if (!plans.length) return '<p class="empty-small">Sin planes de ahorro. <button class="linkbtn" data-action="tab" data-tab="planes">Ver planes</button></p>';
+  const names = {};
+  for (const a of trAssets()) if (a.isin) names[a.isin] = a.name;
+  return '<ul class="simple-list">' + plans.slice(0, 6).map(p => {
+    const isin = trPlanIsin(p);
+    const name = p.instrumentName || (p.instrument && p.instrument.name) || p.name || names[isin] || isin || 'Plan';
+    const amt = trPlanAmount(p);
+    const iv = (p.parameters && p.parameters.interval != null) ? p.parameters.interval : p.interval;
+    const nx = trPlanNext(p);
+    return '<li><div class="l"><strong>' + esc(name) + (p.paused ? ' <span class="pill warn">En pausa</span>' : '') + '</strong><small>' + esc(trIntervalLabel(iv)) + (nx ? ' · próxima ' + datefs(nx) : '') + '</small></div><div class="r num">' + (amt != null ? eur(amt) : '—') + '</div></li>';
+  }).join('') + '</ul>';
 }
 function topHTML(M) {
   const list = M.pos.filter(p => p.value > 0).sort((a, b) => b.value - a.value).slice(0, 5);
   if (!list.length) return '<p class="empty-small">Aún no hay inversiones. <button class="linkbtn" data-action="add-inv">Añadir la primera</button></p>';
-  return '<ul class="simple-list">' + list.map(p => '<li><button class="lb" data-action="open-asset" data-id="' + esc(p.a.id) + '"><span class="l"><strong>' + esc(p.a.name) + '</strong><small>' + TYPES[typeOf(p.a)].l + (p.a.symbol ? ' · ' + esc(p.a.symbol) : '') + '</small></span><span class="r">' + eur(p.value) + '<small class="' + cls(p.pnl) + '">' + pct(p.pnlPct) + '</small></span></button></li>').join('') + '</ul>';
+  return '<ul class="simple-list">' + list.map(p => {
+    const action = p.broker ? 'open-broker' : 'open-asset';
+    const src = p.a.source === 't212' ? 'Trading 212' : p.a.source === 'tr' ? 'Trade Republic' : '';
+    return '<li><button class="lb" data-action="' + action + '" data-id="' + esc(p.a.id) + '"><span class="l ll"><img class="logo sm" data-isin="' + esc(p.a.isin || '') + '" alt=""><span style="min-width:0"><strong>' + esc(p.a.name) + '</strong><small>' + (src ? src + ' · ' : '') + TYPES[typeOf(p.a)].l + (p.a.symbol ? ' · ' + esc(p.a.symbol) : '') + '</small></span></span><span class="r">' + eur(p.value) + '<small class="' + cls(p.pnl) + '">' + pct(p.pnlPct) + '</small></span></button></li>';
+  }).join('') + '</ul>';
 }
 function badgeTxt(a) {
   const s = String(a.symbol || '').split(/[.\-=]/)[0];
@@ -1362,9 +1495,12 @@ function sparkSVG(a) {
 }
 function posRow(p) {
   const a = p.a, t = TYPES[typeOf(a)];
-  const sub = [a.symbol, t.l].filter(Boolean).join(' · ') + (p.pendN ? ', sin precio' : '');
-  return '<button class="row" data-action="open-asset" data-id="' + esc(a.id) + '">' +
-    '<span class="r-name"><span class="badge" style="--k:var(' + t.k + ')">' + esc(badgeTxt(a)) + '</span><span class="tx"><strong>' + esc(a.name) + '</strong><small>' + esc(sub) + '</small></span></span>' +
+  const srcLabel = a.source === 't212' ? 'Trading 212' : a.source === 'tr' ? 'Trade Republic' : '';
+  const sub = (srcLabel ? '<span class="pill src">' + esc(srcLabel) + '</span>' : '') + [a.symbol, t.l].filter(Boolean).join(' · ') + (p.pendN ? ', sin precio' : '');
+  const action = p.broker ? 'open-broker' : 'open-asset';
+  const badgeK = p.broker ? (a.source === 't212' ? '--k-t212' : '--k-tr') : t.k;
+  return '<button class="row" data-action="' + action + '" data-id="' + esc(a.id) + '">' +
+    '<span class="r-name"><span class="badge" style="--k:var(' + badgeK + ')"><span>' + esc(badgeTxt(a)) + '</span><img class="logo" data-isin="' + esc(a.isin || '') + '" alt=""></span><span class="tx"><strong>' + esc(a.name) + '</strong><small>' + sub + '</small></span></span>' +
     '<span class="r-num c-hide c-md">' + qtyf(p.qty) + '<small class="faint">' + pxf(p.avg) + ' medio</small></span>' +
     '<span class="r-num c-hide">' + pxf(p.price) + '<small class="' + cls(p.dayPct || 0) + '">' + (p.dayPct != null ? pct(p.dayPct) + ' hoy' : '&nbsp;') + '</small></span>' +
     '<span class="spark c-hide">' + sparkSVG(a) + '</span>' +
@@ -1373,7 +1509,7 @@ function posRow(p) {
   '</button>';
 }
 function vInv(M) {
-  if (!M.assets.length) return emptyInline('Todavía no tienes inversiones', 'Busca una acción, ETF, fondo o cripto y apunta tu primera compra.', 'add-inv', 'Añadir inversión');
+  if (!M.pos.length) return emptyInline('Todavía no tienes inversiones', 'Busca una acción, ETF, fondo o cripto y apunta tu primera compra.', 'add-inv', 'Añadir inversión');
   const types = TYPE_ORDER.filter(k => M.pos.some(p => typeOf(p.a) === k));
   if (UI.filter !== 'all' && !types.includes(UI.filter)) UI.filter = 'all';
   const isOpen = p => p.qty > 0 || p.pendN > 0;
@@ -1402,7 +1538,10 @@ function vInv(M) {
     '</section>';
 }
 function vCash(M) {
-  if (!M.cash.length) return emptyInline('Sin cuentas de liquidez', 'Añade tu cuenta remunerada con su TAE y verás cuánto te genera cada mes.', 'add-cash', 'Añadir cuenta');
+  const brokerCards = [];
+  if (M.t212Cash > 0.005) brokerCards.push('<div class="card"><div class="card-top"><h4>Trading 212</h4><span class="pill src">Broker</span></div><div class="amt">' + eur(M.t212Cash) + '</div><div class="meta"><span>Efectivo</span><b>solo lectura</b></div></div>');
+  if (M.trCash > 0.005) brokerCards.push('<div class="card"><div class="card-top"><h4>Trade Republic</h4><span class="pill src">Broker</span></div><div class="amt">' + eur(M.trCash) + '</div><div class="meta"><span>Efectivo</span><b>solo lectura</b></div></div>');
+  if (!M.cash.length && !brokerCards.length) return emptyInline('Sin cuentas de liquidez', 'Añade tu cuenta remunerada con su TAE y verás cuánto te genera cada mes.', 'add-cash', 'Añadir cuenta');
   const cards = M.cash.slice().sort((a, b) => b.bal - a.bal).map(r => {
     const c = r.c;
     const month = r.bal > 0 ? r.bal * (Math.pow(1 + r.apy / 100, 30 / 365) - 1) : 0;
@@ -1411,7 +1550,7 @@ function vCash(M) {
       '<div class="amt">' + eur(r.bal) + '</div>' +
       '<div class="meta"><span>Aportado neto</span><b>' + eur(r.principal) + '</b><span>Intereses generados</span><b class="' + cls(r.interest) + '">' + seur(r.interest) + '</b><span>Próximo mes</span><b>' + eur(month) + '</b><span>En un año</span><b>' + eur(r.bal > 0 ? r.bal * r.apy / 100 : 0) + '</b></div>' +
     '</div>';
-  }).join('');
+  }).join('').concat(brokerCards.join(''));
   return '<div class="page-head"><div><p class="label">Liquidez</p><p class="big money">' + eur(M.cashTotal) + '</p>' +
     '<div class="subline"><span class="delta ' + cls(M.interest) + '">' + seur(M.interest) + '</span><span class="faint">de intereses generados</span><span class="faint" style="margin-left:10px">Unos ' + eur(M.monthInt) + ' el próximo mes</span></div></div>' +
     '<button class="btn primary sm" data-action="add-cash">' + IC.plus + 'Añadir</button></div>' +
@@ -1434,13 +1573,71 @@ function planCard(p) {
     '<button class="btn danger sm" data-action="plan-del" data-id="' + esc(p.id) + '">Eliminar</button></div>' +
   '</div>';
 }
+/* Etiquetas legibles para los intervalos de Trade Republic. */
+function trIntervalLabel(iv) {
+  const s = String(iv || '').toLowerCase();
+  if (s === 'twopermonth') return 'Dos veces al mes';
+  if (s === 'monthly') return 'Mensual';
+  if (s === 'weekly') return 'Semanal';
+  if (s === 'quarterly') return 'Trimestral';
+  if (s === 'daily') return 'Diario';
+  return String(iv || '—');
+}
+/* ISIN real del plan: TR lo trae en instrumentId (es el ISIN) o en instrument.isin. */
+function trPlanIsin(p) {
+  return (p.instrument && (p.instrument.isin || p.instrument.wkn)) || p.instrumentId || p.isin || '';
+}
+function trPlanAmount(p) {
+  const raw = p.parameters && p.parameters.amount != null ? p.parameters.amount : p.amount;
+  const n = Number(raw);
+  return isFinite(n) && raw != null ? n : null;
+}
+/* Próxima ejecución del plan si TR la da. */
+function trPlanNext(p) {
+  const s = p.nextExecutionDate || (p.startDate && p.startDate.nextExecutionDate) || (p.parameters && p.parameters.startDate) || '';
+  return validDate(String(s).slice(0, 10)) ? String(s).slice(0, 10) : '';
+}
+/* Veces al mes aproximado según el intervalo de Trade Republic. */
+function trPlanFactor(p) {
+  const iv = String((p.parameters && p.parameters.interval != null) ? p.parameters.interval : p.interval || '').toLowerCase();
+  if (iv === 'twopermonth') return 2;
+  if (iv === 'weekly') return 4;
+  if (iv === 'monthly') return 1;
+  if (iv === 'quarterly') return 1 / 3;
+  if (iv === 'daily') return 30;
+  return 1;
+}
+function trPlanMonthly(p) {
+  const a = trPlanAmount(p);
+  return a != null ? a * trPlanFactor(p) : null;
+}
 function vPlans(M) {
-  if (!M.plans.length) return emptyInline('Sin planes mensuales', 'Elige un activo o una cuenta, el importe y los días del mes. Cada aportación se apunta sola con el precio de ese día.', 'add-plan', 'Crear plan');
-  const monthly = M.plans.filter(p => p.active).reduce((s, p) => s + (+p.amount || 0) * (p.days || []).length, 0);
-  return '<div class="page-head"><div><p class="label">Planes mensuales</p><p class="big money">' + eur(monthly) + '</p><div class="subline"><span class="faint">al mes entre todos los planes activos</span></div></div>' +
-    '<button class="btn primary sm" data-action="add-plan">' + IC.plus + 'Nuevo plan</button></div>' +
-    '<div class="cards">' + M.plans.slice().sort((a, b) => (b.active - a.active) || ((+b.amount) - (+a.amount))).map(planCard).join('') + '</div>' +
-    '<p class="help" style="margin-top:16px">Cada día que toca, la aportación se apunta sola al abrir la cartera, en el PC o en el móvil. Si pasan días sin abrirla, se recuperan todas en la siguiente apertura con el precio de cada fecha.</p>';
+  // Solo planes de ahorro de Trade Republic (lectura; no hay planes manuales).
+  const plans = TR.plans || [];
+  const names = {};
+  for (const a of trAssets()) if (a.isin) names[a.isin] = a.name;
+  if (!plans.length) {
+    return '<div class="page-head"><div><p class="label">Planes de ahorro</p><p class="big money">—</p><div class="subline"><span class="faint">Tus planes de Trade Republic</span></div></div></div>' +
+      '<section class="panel empty"><h2>Sin planes todavía</h2><p>Conecta Trade Republic (Ajustes → Trade Republic) para ver aquí tus planes de ahorro, con su importe e intervalo. Se gestionan desde la app de Trade Republic.</p>' +
+      '<div class="btns"><button class="btn primary" data-action="settings">Abrir ajustes</button></div>' +
+      '<div class="feat"><div><b>Solo lectura</b><span>Los planes se muestran tal y como los tienes en Trade Republic.</span></div></div></section>';
+  }
+  const sum = plans.reduce((s, p) => s + (trPlanMonthly(p) || 0), 0);
+  return '<div class="page-head"><div><p class="label">Planes de ahorro · Trade Republic</p><p class="big money">' + eur(sum) + '</p>' +
+    '<div class="subline"><span class="faint">al mes · ' + plans.length + (plans.length === 1 ? ' plan' : ' planes') + '</span></div></div></div>' +
+    '<div class="cards">' + plans.map(p => {
+      const isin = trPlanIsin(p);
+      const titulo = p.instrumentName || (p.instrument && p.instrument.name) || p.name || names[isin] || isin || 'Plan';
+      const amt = trPlanAmount(p);
+      const monthly = trPlanMonthly(p);
+      const iv = (p.parameters && p.parameters.interval != null) ? p.parameters.interval : p.interval;
+      const nx = trPlanNext(p);
+      const paused = !!p.paused;
+      return '<div class="card"><div class="card-top"><h4>' + esc(titulo) + '</h4><span class="pill ' + (paused ? 'warn' : 'acc') + '">' + (paused ? 'En pausa' : 'Trade Republic') + '</span></div>' +
+        '<div class="amt">' + (amt != null ? eur(amt) : '—') + '<span class="faint" style="font-size:14px;font-weight:500;letter-spacing:0"> por aportación</span></div>' +
+        '<div class="meta"><span>Cuándo</span><b>' + esc(trIntervalLabel(iv)) + '</b>' + (nx ? '<span>Próxima</span><b>' + datef(nx) + '</b>' : '') + (monthly != null ? '<span>Al mes</span><b>' + eur(monthly) + '</b>' : '') + (isin ? '<span>ISIN</span><b style="overflow-wrap:anywhere">' + esc(isin) + '</b>' : '') + '</div></div>';
+    }).join('') + '</div>' +
+    '<p class="help" style="margin-top:16px">Solo lectura: los planes se gestionan desde la app de Trade Republic.</p>';
 }
 
 /* =========================================================
@@ -1448,6 +1645,7 @@ function vPlans(M) {
    ========================================================= */
 let RO = null;
 function afterRender() {
+  applyLogos();
   const box = $('#mainChart');
   if (RO) { RO.disconnect(); RO = null; }
   if (!box) return;
@@ -1712,22 +1910,21 @@ function typeOptions(sel) { return TYPE_ORDER.map(k => '<option value="' + k + '
 
 /* ---------- Añadir */
 function openAdd(tab) {
-  AD.tab = tab || 'inv'; AD.q = ''; AD.online = null; AD.err = ''; AD.cashMode = null;
+  AD.tab = tab || 'inv'; AD.q = ''; AD.cashMode = null;
   openSheet({ fn: shAdd, title: 'Añadir' });
 }
 function shAdd() {
   const t = AD.tab;
-  const tabs = [['inv', 'Inversión'], ['cash', 'Liquidez'], ['plan', 'Plan mensual']];
+  const tabs = [['inv', 'Inversión'], ['cash', 'Liquidez']];
   return head('Añadir') +
     '<div class="seg full" role="tablist">' + tabs.map(x => '<button role="tab" data-action="add-tab" data-k="' + x[0] + '" aria-selected="' + (t === x[0]) + '">' + x[1] + '</button>').join('') + '</div>' +
-    '<div>' + (t === 'inv' ? addInvPane() : t === 'cash' ? addCashPane() : planFormHTML({ embedded: true })) + '</div>';
+    '<div>' + (t === 'inv' ? addInvPane() : addCashPane()) + '</div>';
 }
 function addInvPane() {
-  const on = online();
   return '<form class="form" data-form="search" style="margin-top:18px" novalidate>' +
     '<div class="fld"><label class="lbl" for="f-q">Buscar acción, ETF, fondo o cripto</label>' +
-    '<div class="inline"><input class="field" id="f-q" name="q" value="' + esc(AD.q) + '" placeholder="Nombre, ticker o ISIN" autocomplete="off" autofocus enterkeyhint="search"><button class="btn primary" type="submit" style="height:46px">' + (on ? 'Buscar online' : 'Buscar') + '</button></div>' +
-    '<p class="help">' + esc(searchHelp()) + '</p></div>' +
+    '<div class="inline"><input class="field" id="f-q" name="q" value="' + esc(AD.q) + '" placeholder="Nombre, ticker o ISIN" autocomplete="off" autofocus enterkeyhint="search"></div>' +
+    '<p class="help">Busca entre tus activos y sugerencias, o añádelo a mano más abajo.</p></div>' +
     '</form>' +
     '<div id="results">' + resultsHTML() + '</div>' +
     '<p style="margin-top:14px"><button class="linkbtn" data-action="manual-asset">¿No aparece? Añadir a mano</button></p>';
@@ -1744,11 +1941,8 @@ function resultsHTML() {
   AD.cat = CATALOG.filter(c => match([c.name, c.symbol, c.isin])).slice(0, q ? 8 : 12);
   let h = '';
   if (AD.mine.length) h += group('En tu cartera', AD.mine.map((a, i) => resRow('mine', i, a.name, [a.symbol, TYPES[typeOf(a)].l].filter(Boolean).join(' · '), typeOf(a))));
-  if (AD.searching) h += '<div class="res-group"><h4>Yahoo Finance</h4><div class="loading-box" style="padding:18px 0"><span class="spin"></span>Buscando...</div></div>';
-  else if (AD.err) h += '<div class="res-group"><h4>Yahoo Finance</h4><p class="help err">' + esc(AD.err) + '</p></div>';
-  else if (AD.online) h += AD.online.length ? group('Yahoo Finance', AD.online.map((o, i) => resRow('online', i, o.name, [o.symbol, o.exch].filter(Boolean).join(' · '), o.type))) : '<div class="res-group"><h4>Yahoo Finance</h4><p class="empty-small">Sin resultados. Prueba con el ticker o el ISIN.</p></div>';
   if (AD.cat.length) h += group(q ? 'Sugerencias' : 'Populares', AD.cat.map((c, i) => resRow('cat', i, c.name, [c.symbol || c.isin, c.exch].filter(Boolean).join(' · '), c.type)));
-  if (!h) h = '<p class="empty-small">Nada en las sugerencias. ' + (online() ? 'Pulsa Buscar online.' : 'Añádelo a mano.') + '</p>';
+  if (!h) h = '<p class="empty-small">Nada en las sugerencias. Añádelo a mano más abajo.</p>';
   return h;
 }
 function paintResults() { const r = $('#results'); if (r) r.innerHTML = resultsHTML(); }
@@ -1757,7 +1951,7 @@ function shManual() {
     '<form class="form" data-form="manual" style="margin-top:8px" novalidate>' +
     '<div class="fld"><label class="lbl" for="m-name">Nombre</label><input class="field" id="m-name" name="name" placeholder="Ej. Fondo de mi banco" autofocus maxlength="80"></div>' +
     '<div class="f-row"><div class="fld"><label class="lbl" for="m-type">Tipo</label><select class="field" id="m-type" name="type">' + typeOptions('fund') + '</select></div>' +
-    '<div class="fld"><label class="lbl" for="m-sym">Ticker de Yahoo (opcional)</label><input class="field" id="m-sym" name="symbol" placeholder="Ej. SAN.MC" autocapitalize="characters" maxlength="24"></div></div>' +
+    '<div class="fld"><label class="lbl" for="m-sym">Ticker (opcional)</label><input class="field" id="m-sym" name="symbol" placeholder="Ej. SAN.MC" autocapitalize="characters" maxlength="24"></div></div>' +
     '<div class="fld"><label class="lbl" for="m-isin">ISIN (opcional)</label><input class="field" id="m-isin" name="isin" placeholder="Ej. IE00B03HD191" autocapitalize="characters" maxlength="12"></div>' +
     '<div class="fld"><label class="lbl" for="m-price">Precio actual por participación (€)</label><input class="field" id="m-price" name="price" inputmode="decimal" placeholder="0,00"><p class="help">Puedes cambiarlo cuando quieras desde la ficha del activo.</p></div>' +
     '<p class="help err" id="manErr" hidden></p>' +
@@ -1793,11 +1987,9 @@ function cashMoveForm(cashId, accs) {
 function txAsset(ctx) { return ctx.assetId ? D().get(ctx.assetId) : ctx.draft; }
 function priceHelp(a, date, pref, tx) {
   if (tx) return 'Precio guardado en la operación.';
-  const canFetch = online() && a.symbol;
-  const fetchBtn = canFetch ? ' <button type="button" class="linkbtn" data-action="date-price">Traer el precio de esa fecha</button>' : '';
   if (pref && pref.exact) return 'Cierre del ' + datef(pref.from) + ': ' + pxf(pref.price) + '. Cámbialo si pagaste otro precio.';
-  if (pref) return 'Precio actual: ' + pxf(pref.price) + '. Si compraste otro día, escribe tu precio.' + (validDate(date) && toEd(date) < todayEd() - 2 ? fetchBtn : '');
-  return 'Escribe el precio al que compraste.' + fetchBtn;
+  if (pref) return 'Precio actual: ' + pxf(pref.price) + '. Si compraste otro día, escribe tu precio.';
+  return 'Escribe el precio al que compraste.';
 }
 function shTx(ctx) {
   const a = txAsset(ctx); if (!a) return shGone();
@@ -1822,10 +2014,6 @@ function shTx(ctx) {
       '<p class="help" id="priceHelp">' + priceHelp(a, date, pref, tx) + '</p>' +
       '<div class="fld"><label class="lbl" for="f-total" id="totalLbl">' + (side === 'sell' ? 'Total recibido (€)' : 'Total pagado (€)') + '</label><input class="field" id="f-total" name="total" inputmode="decimal" autocomplete="off" value="' + numIn(total, 2) + '" placeholder="0,00"><p class="help">Si escribes el total, calculo las participaciones con el precio.</p></div>' +
       '<div class="fld"><label class="lbl" for="f-note">Nota (opcional)</label><input class="field" id="f-note" name="note" value="' + esc(tx && tx.note || '') + '" maxlength="120"></div>' +
-      (!tx ? '<div class="plan-box" id="planInline"' + (side === 'sell' ? ' hidden' : '') + '><label class="check"><input type="checkbox" name="mkplan" id="f-mkplan"> Repetir esta compra cada mes</label>' +
-        '<div id="planInlineBody" hidden><div class="f-row keep"><div class="fld"><label class="lbl" for="f-pamt">Importe por aportación (€)</label><input class="field" id="f-pamt" name="pamount" inputmode="decimal" placeholder="100"></div>' +
-        '<div class="fld"><span class="lbl">Desde</span><span class="faint" style="padding-top:12px">Mañana en adelante</span></div></div>' +
-        '<div class="fld" style="margin-top:12px"><span class="lbl">Días del mes</span>' + daysPicker([new Date().getDate() === 1 ? 2 : 1]) + '</div></div></div>' : '') +
       '<p class="help err" id="txErr" hidden></p>' +
       '<button class="btn primary wide" type="submit" id="txSubmit">' + (tx ? 'Guardar cambios' : side === 'sell' ? 'Guardar venta' : 'Guardar compra') + '</button>' +
     '</form>';
@@ -1856,16 +2044,33 @@ function txDateChanged(f) {
 }
 
 /* ---------- Ficha de activo */
+function shBroker(id) {
+  const a = t212Assets().find(x => x.id === id) || trAssets().find(x => x.id === id);
+  if (!a) return shGone();
+  const srcName = a.source === 't212' ? 'Trading 212' : 'Trade Republic';
+  const qty = a.vQty || 0, cost = a.vCost, value = a.vValue, pnl = a.vPpl;
+  const pnlPct = cost && cost > 0 ? pnl / cost : 0;
+  return head(a.name) +
+    '<p class="help" style="margin-top:6px"><span class="pill src">' + esc(srcName) + '</span> Solo lectura · se sincroniza al actualizar el broker.</p>' +
+    '<div class="asset-head"><span class="badge" style="--k:var(' + (a.source === 't212' ? '--k-t212' : '--k-tr') + ')"><span>' + esc(badgeTxt(a)) + '</span><img class="logo" data-isin="' + esc(a.isin || '') + '" alt=""></span><div style="min-width:0"><p class="label" style="margin:0">' + esc(a.symbol || a.isin || '') + '</p><p class="big2 money">' + pxf(a.price) + '</p></div></div>' +
+    '<dl class="stats">' +
+      '<div><dt>Participaciones</dt><dd>' + qtyf(qty) + '</dd></div>' +
+      '<div><dt>Precio actual</dt><dd>' + pxf(a.price) + '</dd></div>' +
+      '<div><dt>Invertido</dt><dd>' + eur(cost) + '</dd></div>' +
+      '<div><dt>Valor actual</dt><dd>' + eur(value) + '</dd></div>' +
+      '<div><dt>Rentabilidad</dt><dd class="' + cls(pnl || 0) + '">' + seur(pnl) + '<br><small>' + pct(pnlPct) + '</small></dd></div>' +
+      (a.isin ? '<div><dt>ISIN</dt><dd>' + esc(a.isin) + '</dd></div>' : '') +
+    '</dl>';
+}
 function shAsset(id) {
   const a = D().get(id); if (!a) return shGone();
   const p = calcPos(a); const t = TYPES[typeOf(a)];
   const plans = all('plan').filter(x => x.targetId === id);
   const txs = txsOf(a).reverse();
   const dayPct = (a.price > 0 && a.prev > 0) ? a.price / a.prev - 1 : null;
-  const canFetch = online() && a.symbol;
   const q = encodeURIComponent((a.isin || a.symbol || a.name) + ' cotización');
   return head(a.name) +
-    '<div class="asset-head"><span class="badge" style="--k:var(' + t.k + ')">' + esc(badgeTxt(a)) + '</span><div style="min-width:0"><p class="label" style="margin:0">' + esc(a.symbol || 'Sin ticker') + '</p><p class="big2 money">' + pxf(priceEUR(a)) + '</p></div></div>' +
+    '<div class="asset-head"><span class="badge" style="--k:var(' + t.k + ')"><span>' + esc(badgeTxt(a)) + '</span><img class="logo" data-isin="' + esc(a.isin || '') + '" alt=""></span><div style="min-width:0"><p class="label" style="margin:0">' + esc(a.symbol || 'Sin ticker') + '</p><p class="big2 money">' + pxf(priceEUR(a)) + '</p></div></div>' +
     '<div class="subline">' + (dayPct != null ? '<span class="delta ' + cls(dayPct) + '">' + pct(dayPct) + '</span><span class="faint">hoy</span>' : '') + '<span class="pill">' + t.l + '</span>' + (curOf(a) !== 'EUR' ? '<span class="pill">Cotiza en ' + esc(a.currency) + '</span>' : '') + (a.priceAt ? '<span class="faint">' + (a.manualAt && a.manualAt === a.priceAt ? 'Precio manual ' : 'Actualizado ') + ago(a.priceAt) + '</span>' : '') + '</div>' +
     '<div class="mini" id="miniChart"></div>' +
     (a.hist && a.hist.c && a.hist.c.length > 1 ? '<p class="help">Puntos: tus compras y ventas. Línea discontinua: tu precio medio.</p>' : '') +
@@ -1877,18 +2082,18 @@ function shAsset(id) {
       '<div><dt>Rentabilidad</dt><dd class="' + cls(p.pnl) + '">' + seur(p.pnl) + '<br><small>' + pct(p.pnlPct) + '</small></dd></div>' +
       '<div><dt>Ganancia realizada</dt><dd class="' + cls(p.realized) + '">' + seur(p.realized) + '</dd></div>' +
     '</dl>' +
-    ((p.pendN || p.estN) ? '<div class="banner-in warn" style="margin-top:14px"><span>' + [p.pendN ? p.pendN + ' sin precio' : '', p.estN ? p.estN + ' con precio aproximado' : ''].filter(Boolean).join(' y ') + '.</span>' + (canFetch ? '<button class="btn sm ghost" data-action="fill-hist" data-id="' + esc(id) + '"' + (B.busy ? ' disabled' : '') + '>Buscar precios</button>' : '') + '</div>' : '') +
-    '<div class="card-actions" style="margin-top:16px"><button class="btn primary sm" data-action="tx-new" data-id="' + esc(id) + '">' + IC.plus + 'Operación</button><button class="btn ghost sm" data-action="add-plan" data-target="' + esc(id) + '">Plan mensual</button></div>' +
+    ((p.pendN || p.estN) ? '<div class="banner-in warn" style="margin-top:14px"><span>' + [p.pendN ? p.pendN + ' sin precio' : '', p.estN ? p.estN + ' con precio aproximado' : ''].filter(Boolean).join(' y ') + '.</span></div>' : '') +
+    '<div class="card-actions" style="margin-top:16px"><button class="btn primary sm" data-action="tx-new" data-id="' + esc(id) + '">' + IC.plus + 'Operación</button></div>' +
     '<section class="sh-sec"><h3>Operaciones</h3>' + (txs.length ? '<ul class="tx-list">' + txs.map(x => txItem(a, x)).join('') + '</ul>' : '<p class="empty-small">Sin operaciones.</p>') + '</section>' +
     (plans.length ? '<section class="sh-sec"><h3>Planes de este activo</h3><ul class="simple-list">' + plans.map(pl => '<li><div class="l"><strong>' + eur(pl.amount) + '</strong><small>' + esc(daysText(pl.days)) + (pl.active ? '' : ', en pausa') + '</small></div><button class="btn ghost sm" data-action="edit-plan" data-id="' + esc(pl.id) + '">Editar</button></li>').join('') + '</ul></section>' : '') +
     '<section class="sh-sec"><h3>Datos del activo</h3><form class="form" data-form="assetEdit" data-id="' + esc(id) + '" novalidate>' +
       '<div class="fld"><label class="lbl" for="e-name">Nombre</label><input class="field" id="e-name" name="name" value="' + esc(a.name) + '" maxlength="80"></div>' +
       '<div class="f-row"><div class="fld"><label class="lbl" for="e-type">Tipo</label><select class="field" id="e-type" name="type">' + typeOptions(typeOf(a)) + '</select></div>' +
-      '<div class="fld"><label class="lbl" for="e-sym">Ticker de Yahoo</label><input class="field" id="e-sym" name="symbol" value="' + esc(a.symbol || '') + '" placeholder="Ej. IWDA.AS" maxlength="24" autocapitalize="characters"></div></div>' +
+      '<div class="fld"><label class="lbl" for="e-sym">Ticker</label><input class="field" id="e-sym" name="symbol" value="' + esc(a.symbol || '') + '" placeholder="Ej. IWDA.AS" maxlength="24" autocapitalize="characters"></div></div>' +
       '<div class="f-row"><div class="fld"><label class="lbl" for="e-isin">ISIN</label><input class="field" id="e-isin" name="isin" value="' + esc(a.isin || '') + '" maxlength="12" autocapitalize="characters"></div>' +
       '<div class="fld"><label class="lbl" for="e-mprice">Poner precio a mano (€)</label><input class="field" id="e-mprice" name="mprice" inputmode="decimal" placeholder="' + esc(numIn(priceEUR(a), 4) || '0,00') + '"></div></div>' +
       '<button class="btn ghost" type="submit">Guardar datos</button></form>' +
-      '<div class="links" style="margin-top:14px">' + (a.symbol && !S.demo ? '<a class="linkbtn" href="https://finance.yahoo.com/quote/' + encodeURIComponent(a.symbol) + '" target="_blank" rel="noopener">Ver en Yahoo Finance' + IC.ext + '</a>' : '') + '<a class="linkbtn" href="https://www.google.com/search?q=' + q + '" target="_blank" rel="noopener">Buscar en Google' + IC.ext + '</a></div>' +
+      '<div class="links" style="margin-top:14px">' + '<a class="linkbtn" href="https://www.google.com/search?q=' + q + '" target="_blank" rel="noopener">Buscar en Google' + IC.ext + '</a></div>' +
     '</section>' +
     '<section class="sh-sec"><button class="btn danger wide" data-action="asset-del" data-id="' + esc(id) + '">Eliminar activo</button><p class="help" style="margin-top:8px">Se borran también sus operaciones y planes. Podrás deshacerlo.</p></section>';
 }
@@ -1973,31 +2178,196 @@ function modeLabel() {
   if (S.mode === 'local') return STANDALONE ? 'En este dispositivo (sin conexión con Claude)' : 'Solo en este navegador';
   return 'Conectando';
 }
-function proxySection() {
+function brokerSection() {
   if (!STANDALONE) return '';
   const own = lsGet(LS_PROXY);
-  const status = B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') + (own && own.url ? ', guardado en este dispositivo.' : ', configurado en el repositorio.') : 'Sin servidor: los precios se ponen a mano.';
-  return '<section class="sh-sec"><h3>Precios online</h3>' +
-    '<p class="help" style="margin-bottom:12px">Esta versión trae las cotizaciones de Yahoo Finance a través de un servidor tuyo, gratuito, en Cloudflare Workers. Los pasos están en el README del repositorio, en "Precios online en la versión web".</p>' +
-    '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor de precios</label>' +
-    '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://cartera-precios.tu-cuenta.workers.dev"></div>' +
+  const status = B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') + (own && own.url ? ', guardado en este dispositivo.' : ', configurado en el repositorio.') : 'Sin servidor configurado.';
+  return '<section class="sh-sec"><h3>Servidor de brokers</h3>' +
+    '<p class="help" style="margin-bottom:12px">Este servidor (Cloudflare Workers) es quien habla con Trading 212. Las claves viven ahí como secretos; nunca en esta app. Los datos se guardan en este dispositivo.</p>' +
+    '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor</label>' +
+    '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://cartera-brokers.tu-cuenta.workers.dev"></div>' +
     '<p class="help" id="pxMsg">' + esc(status) + '</p>' +
     '<div class="card-actions"><button class="btn primary sm" type="submit">Guardar y probar</button>' +
     (B.proxy ? '<button type="button" class="btn ghost sm" data-action="proxy-clear">Quitar</button>' : '') +
     (B.cfgProxy && own ? '<button type="button" class="btn ghost sm" data-action="proxy-default">Usar el del repositorio</button>' : '') +
     '</div></form></section>';
 }
+/* Normaliza una posición de Trading 212 (campos reales de la API) a un activo
+   virtual que el modelo puede sumar. Devuelve null si no hay datos aprovechables. */
+function t212Assets() {
+  const acc = T.account || {};
+  const cur = acc.currency || 'EUR';
+  return (T.positions || []).map(p => {
+    const ins = p.instrument || {};
+    const wi = p.walletImpact || {};
+    const qty = p.quantity != null ? p.quantity : 0;
+    const price = p.currentPrice != null ? p.currentPrice : null;
+    const cost = wi.totalCost != null ? wi.totalCost : (p.averagePricePaid != null && qty ? p.averagePricePaid * qty : null);
+    const value = wi.currentValue != null ? wi.currentValue : (price != null && qty != null ? price * qty : null);
+    if (!ins.ticker && !ins.name) return null;
+    return {
+      id: 't212_' + (ins.ticker || ins.isin || Math.random().toString(36).slice(2, 8)),
+      kind: 'asset', source: 't212', type: t212TypeOf(ins.name, ins.ticker), name: ins.name || ins.ticker,
+      symbol: ins.ticker, isin: ins.isin || '', currency: ins.currency || cur,
+      price: price, prev: price, txs: [], hist: null,
+      vQty: qty, vCost: cost, vValue: value, vPpl: wi.unrealizedProfitLoss
+    };
+  }).filter(Boolean);
+}
+/* Clasifica un tipo de instrumento de Trade Republic a los tipos de la app. */
+function trTypeOf(it) {
+  const s = String(it || '').toLowerCase();
+  if (/etf/.test(s)) return 'etf';
+  if (/stock|share/.test(s)) return 'stock';
+  if (/fund/.test(s)) return 'fund';
+  if (/crypto/.test(s)) return 'crypto';
+  return 'other'; // bonos, derivados, private markets...
+}
+/* Clasifica una posición de Trading 212 por su nombre/ticker (la API de
+   posiciones no trae el tipo del instrumento). */
+function t212TypeOf(name, ticker) {
+  const s = String(name || '') + ' ' + String(ticker || '');
+  if (/ETF|UCITS/i.test(s)) return 'etf';
+  if (/\bfund\b|fondo|investment trust/i.test(s)) return 'fund';
+  if (/bitcoin|ethereum|solana|xrp|cardano|dogecoin|polkadot|crypto|cripto/i.test(s)) return 'crypto';
+  return 'stock';
+}
+function trAssets() {
+  return (TR.positions || []).map(p => {
+    const qty = p.netSize != null ? Number(p.netSize) : 0;
+    const avg = p.averageBuyIn != null ? Number(p.averageBuyIn) : null;
+    const cur = p.currency || 'EUR';
+    const name = p.name || p.isin || 'Posición';
+    const cost = (avg != null && qty) ? avg * qty : null;
+    const price = okNum(p.currentPrice) ? Number(p.currentPrice) : avg;
+    const value = okNum(p.value) ? Number(p.value) : cost;
+    const ppl = okNum(p.ppl) ? Number(p.ppl) : null;
+    return {
+      id: 'tr_' + (p.isin || Math.random().toString(36).slice(2, 8)),
+      kind: 'asset', source: 'tr', type: trTypeOf(p.instrumentType), name, symbol: p.isin || '', isin: p.isin || '',
+      currency: cur, price: price, prev: price, txs: [], hist: null,
+      vQty: qty, vCost: cost, vValue: value, vPpl: ppl
+    };
+  }).filter(Boolean);
+}
+function t212AccountHTML() {
+  const a = T.account;
+  if (!a) return '';
+  const rows = [];
+  const perc = (v) => (typeof v === 'number' && isFinite(v)) ? (v >= 0 ? '+' : MINUS) + NP.format(Math.abs(v * 100)) + ' %' : f(v);
+  const cash = a.cash || {}, inv = a.investments || {};
+  if (cash.availableToTrade != null) rows.push(['Disponible', money(cash.availableToTrade)]);
+  if (cash.inPies != null) rows.push(['En pies', money(cash.inPies)]);
+  if (cash.reservedForOrders != null) rows.push(['Reservado', money(cash.reservedForOrders)]);
+  if (inv.totalCost != null) rows.push(['Invertido', money(inv.totalCost)]);
+  if (inv.currentValue != null) rows.push(['Valor inversiones', money(inv.currentValue)]);
+  if (inv.unrealizedProfitLoss != null) rows.push(['P&L latente', money(inv.unrealizedProfitLoss)]);
+  if (inv.realizedProfitLoss != null) rows.push(['P&L realizado', money(inv.realizedProfitLoss)]);
+  if (a.totalValue != null) rows.push(['Valor total', money(a.totalValue)]);
+  if (inv.currentValue != null && inv.totalCost != null && inv.totalCost > 0) rows.push(['Rentabilidad', perc(inv.unrealizedProfitLoss / inv.totalCost)]);
+  if (!rows.length) return '<p class="empty-small">Resumen de cuenta no disponible.</p>';
+  return '<h3>Resumen de cuenta</h3><dl class="kv">' + rows.map(r => '<dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>';
+}
+function t212PositionsHTML() {
+  const list = t212Assets();
+  if (!list.length) return '<h3 style="margin-top:16px">Posiciones abiertas</h3><p class="empty-small">Sin posiciones abiertas.</p>';
+  const rows = list.map(a => {
+    const qty = qtyf(a.vQty);
+    const avg = okNum(a.vCost) && okNum(a.vQty) ? pxf(a.vCost / (a.vQty || 1)) : '—';
+    const cur = pxf(a.price);
+    const ppl = okNum(a.vPpl) ? a.vPpl : null;
+    return '<li><div class="l"><strong>' + esc(a.name) + '</strong><small>Media ' + esc(avg) + ' · Actual ' + esc(cur) + '</small></div><div class="r num">' + qty + '<small class="' + cls(ppl || 0) + '">' + seur(ppl) + '</small></div></li>';
+  });
+  return '<h3 style="margin-top:16px">Posiciones abiertas</h3><ul class="simple-list">' + rows.join('') + '</ul>';
+}
+function t212Section() {
+  return '<section class="sh-sec"><h3>Trading 212</h3>' +
+    '<p class="help" style="margin-bottom:12px">Solo lectura: consulta tu cuenta y posiciones. Los datos se guardan en este dispositivo y se reutilizan sin conexión.</p>' +
+    '<div id="t212Body">' + renderT212Inner() + '</div></section>';
+}
+function renderT212Inner() {
+  if (!STANDALONE) return '<p class="help">Disponible solo en la app instalable (web), no en la versión de escritorio de Claude.</p>';
+  if (!B.proxy) return '<p class="help">Primero configura el servidor de brokers (arriba).</p>';
+  if (T.state === 'busy') return '<div class="loading-box" style="padding:12px 0"><span class="spin"></span>Consultando Trading 212...</div>';
+  if (T.state === 'err') return '<p class="help err">' + esc(T.err) + '</p><button class="btn ghost sm" data-action="t212-load">Reintentar</button>';
+  if (T.state === 'ok' || T.state === 'cached') {
+    const warn = T.err ? '<div class="banner-in warn" style="margin-bottom:10px"><span>' + esc(T.err) + '</span></div>' : '';
+    const head = warn + '<div class="card-actions" style="margin-bottom:12px"><span class="pill acc">' + (T.state === 'cached' ? 'Guardado (sin conexión)' : 'Conectado') + '</span>' + (T.at ? '<span class="faint">' + ago(T.at) + '</span>' : '') + '<button class="btn ghost sm" data-action="t212-load">Actualizar</button></div>';
+    return head + t212AccountHTML() + t212PositionsHTML();
+  }
+  return '<button class="btn primary sm" data-action="t212-load">Conectar y ver cuenta</button>';
+}
+function trSection() {
+  if (!STANDALONE) return '';
+  return '<section class="sh-sec"><h3>Trade Republic</h3>' +
+    '<p class="help" style="margin-bottom:12px">Solo lectura, vía no oficial con código QR. Necesita un servidor local en tu PC (carpeta tr-server). Ver README.</p>' +
+    '<form class="form" data-form="trurl" novalidate><div class="fld"><label class="lbl" for="tr-url">Dirección del servidor local</label>' +
+    '<div class="inline"><input class="field" id="tr-url" name="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(TR.localUrl) + '" placeholder="http://localhost:8788"><button class="btn ghost" type="submit" style="height:46px">Guardar</button></div></div></form>' +
+    '<div id="trBody">' + renderTrInner() + '</div></section>';
+}
+function renderTrInner() {
+  if (!STANDALONE) return '<p class="help">Disponible solo en la app instalable (web).</p>';
+  if (!trLocal()) return '<p class="help">Pon arriba la dirección del servidor local (ej. http://localhost:8788) y guárdala.</p>';
+  if (TR.state === 'busy') return '<div class="loading-box" style="padding:12px 0"><span class="spin"></span>Conectando con Trade Republic...</div>';
+  if (TR.state === 'qr') return '<p class="help">Escanea este código QR con la app de Trade Republic para vincular.</p><div class="qr-box" id="qrBox"></div><button class="btn ghost sm" data-action="tr-check">Ya lo he escaneado</button>';
+  if (TR.state === 'err') return '<p class="help err">' + esc(TR.err) + '</p><div class="card-actions"><button class="btn primary sm" data-action="tr-login">Vincular con QR</button><button class="btn ghost sm" data-action="tr-load">Reintentar lectura</button></div>';
+  if (TR.state === 'ok' || TR.state === 'cached') {
+    const warn = TR.err ? '<div class="banner-in warn" style="margin-bottom:10px"><span>' + esc(TR.err) + '</span><button class="btn sm ghost" data-action="tr-login">Vincular con QR</button></div>' : '';
+    const head = warn + '<div class="card-actions" style="margin-bottom:12px"><span class="pill acc">' + (TR.state === 'cached' ? 'Guardado (sin conexión)' : 'Conectado') + '</span>' + (TR.at ? '<span class="faint">' + ago(TR.at) + '</span>' : '') + '<button class="btn ghost sm" data-action="tr-load">Actualizar</button></div>';
+    return head + trHTML();
+  }
+  return '<button class="btn primary sm" data-action="tr-login">Vincular con QR</button>';
+}
+function trHTML() {
+  const pos = TR.positions || [];
+  let h = '';
+  if (TR.cash && Array.isArray(TR.cash) && TR.cash.length) {
+    h += '<h3>Efectivo</h3><dl class="kv">' + TR.cash.map(c => '<dt>' + esc(c.currency || 'EUR') + '</dt><dd>' + money(c.amount) + '</dd>').join('') + '</dl>';
+  }
+  if (pos.length) {
+    h += '<h3 style="margin-top:16px">Posiciones</h3><ul class="simple-list">' + pos.map(p => {
+      const name = p.name || p.isin || '—';
+      const qty = p.netSize != null ? qtyf(Number(p.netSize)) : '—';
+      const invested = okNum(p.invested) ? Number(p.invested) : (p.averageBuyIn != null && p.netSize != null ? Number(p.averageBuyIn) * Number(p.netSize) : null);
+      const ppl = okNum(p.ppl) ? Number(p.ppl) : null;
+      return '<li><div class="l"><strong>' + esc(name) + '</strong><small>' + (p.isin ? esc(p.isin) + ' · ' : '') + 'Invertido ' + eur(invested) + '</small></div><div class="r num">' + qty + '<small class="' + cls(ppl || 0) + '">' + (ppl != null ? seur(ppl) : '—') + '</small></div></li>';
+    }).join('') + '</ul>';
+  } else h += '<p class="empty-small">Sin posiciones.</p>';
+  const plans = TR.plans || [];
+  if (plans.length) {
+    h += '<h3 style="margin-top:16px">Planes de ahorro</h3><ul class="simple-list">' + plans.map(p => {
+      const isin = trPlanIsin(p);
+      const name = p.instrumentName || (p.instrument && (p.instrument.name || p.instrument.isin)) || p.name || isin || p.instrumentId || 'Plan';
+      const amount = trPlanAmount(p);
+      const iv = (p.parameters && p.parameters.interval != null) ? p.parameters.interval : p.interval;
+      const nx = trPlanNext(p);
+      return '<li><div class="l"><strong>' + esc(name) + (p.paused ? ' <span class="pill warn">En pausa</span>' : '') + '</strong><small>' + esc(trIntervalLabel(iv)) + (nx ? ' · próxima ' + datefs(nx) : '') + '</small></div><div class="r num">' + (amount != null ? eur(amount) : '—') + '</div></li>';
+    }).join('') + '</ul>';
+  }
+  return h;
+}
+function renderBrokers() {
+  const b1 = $('#t212Body'); if (b1) b1.innerHTML = renderT212Inner();
+  const b2 = $('#trBody'); if (b2) b2.innerHTML = renderTrInner();
+  const qb = $('#qrBox'); if (qb && TR.qr) drawQR(qb, TR.qr);
+  scheduleRender();
+}
+function drawQR(box, text) {
+  // Codifica el payload como QR con un servicio sin enviar datos sensibles a la app.
+  const url = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(text);
+  box.innerHTML = '<img src="' + url + '" alt="Código QR de Trade Republic" width="220" height="220">';
+}
 function shSettings() {
   const docs = Array.from(S.docs.values());
-  const st = settings();
   return head('Ajustes') +
     '<section class="sh-sec" style="margin-top:8px"><h3>Estado</h3><dl class="kv">' +
       '<dt>Datos</dt><dd>' + modeLabel() + '</dd>' +
-      '<dt>Precios online</dt><dd>' + (B.mcp ? 'Disponibles con el navegador de Claude' : STANDALONE ? (B.proxy ? 'Activos con tu servidor de precios' : 'Sin servidor configurado') : B.checked ? 'No disponibles en este dispositivo' : 'Comprobando') + '</dd>' +
-      '<dt>Últimos precios</dt><dd>' + (st.pricesAt ? ago(st.pricesAt) : 'Nunca') + '</dd>' +
+      '<dt>Servidor de brokers</dt><dd>' + (STANDALONE ? (B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') : 'Sin servidor configurado') : 'No aplica en esta versión') + '</dd>' +
       '<dt>Registros</dt><dd>' + docs.length + '</dd>' +
     '</dl></section>' +
-    proxySection() +
+    brokerSection() +
+    t212Section() +
+    trSection() +
     '<section class="sh-sec"><h3>Copia de seguridad</h3><p class="help" style="margin-bottom:10px">Copia este texto y guárdalo donde quieras. Para restaurar, pégalo en el cuadro de abajo.</p>' +
       '<textarea class="field" id="exportTxt" readonly rows="4" aria-label="Copia de seguridad">' + esc(JSON.stringify({ app: 'cartera', v: 1, at: new Date().toISOString(), docs })) + '</textarea>' +
       '<div class="card-actions" style="margin-top:10px"><button class="btn ghost sm" data-action="copy-export">Copiar</button></div></section>' +
@@ -2018,7 +2388,7 @@ const inSheet = el => !!el.closest('#sheet');
 ACT.tab = el => { if (SH.open && inSheet(el)) closeSheet(); setTab(el.dataset.tab); };
 ACT.range = el => { UI.range = +el.dataset.r; saveUI(); UI.histCache = null; render(); };
 ACT.filter = el => { UI.filter = el.dataset.k; saveUI(); render(); };
-ACT.add = () => openAdd(UI.tab === 'liquidez' ? 'cash' : UI.tab === 'planes' ? 'plan' : 'inv');
+ACT.add = () => openAdd(UI.tab === 'liquidez' ? 'cash' : 'inv');
 ACT['add-inv'] = () => openAdd('inv');
 ACT['add-cash'] = () => openAdd('cash');
 ACT['add-plan'] = el => {
@@ -2028,15 +2398,44 @@ ACT['add-plan'] = el => {
 ACT['add-tab'] = el => { AD.tab = el.dataset.k; if (SH.stack[0] && SH.stack[0].fn === shAdd) { SH.stack = [SH.stack[0]]; paintSheet(true); } else openAdd(AD.tab); };
 ACT['cash-mode'] = el => { AD.cashMode = el.dataset.m; paintSheet(true); };
 ACT['sheet-close'] = () => closeSheet();
-ACT['proxy-clear'] = () => { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; onlineUI(); toast('Servidor de precios quitado'); };
-ACT['proxy-default'] = () => { try { localStorage.removeItem(LS_PROXY); } catch (e) { /* sin almacenamiento */ } B.proxy = B.cfgProxy; onlineUI(); toast('Usando el servidor del repositorio'); autoRefresh(); };
+ACT['proxy-clear'] = () => { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; toast('Servidor de brokers quitado'); renderBrokers(); };
+ACT['proxy-default'] = () => { try { localStorage.removeItem(LS_PROXY); } catch (e) { /* sin almacenamiento */ } B.proxy = B.cfgProxy; toast('Usando el servidor del repositorio'); renderBrokers(); };
 ACT['banner-ok'] = () => { lsSet('cartera.bannerOk', 1); renderBanner(); };
 ACT['sheet-back'] = () => sheetBack();
-ACT.refresh = () => refreshPrices();
+ACT['t212-load'] = () => loadT212();
+ACT['tr-login'] = () => trLogin();
+ACT['tr-check'] = () => trCheck();
+ACT['tr-load'] = () => trLoad();
+ACT['refresh-rate'] = () => {
+  const m = $('#rateMenu');
+  if (m) m.hidden = !m.hidden;
+  const t = $('#themeMenu'); if (t && !m.hidden) t.hidden = true;
+};
+ACT['theme-menu'] = () => {
+  const t = $('#themeMenu');
+  if (t) t.hidden = !t.hidden;
+  const m = $('#rateMenu'); if (m && !t.hidden) m.hidden = true;
+};
+ACT['rate-set'] = el => {
+  UI.refresh = +el.dataset.s;
+  lsSet(LS_AUTOREFRESH, { s: UI.refresh });
+  const m = $('#rateMenu'); if (m) m.hidden = true;
+  renderRateBtn();
+  toast(UI.refresh > 0 ? 'Actualización automática: cada ' + UI.refresh + ' s' : 'Actualización automática apagada');
+};
+ACT['theme-set'] = el => {
+  UI.theme = el.dataset.v;
+  lsSet(LS_THEME, { t: UI.theme });
+  applyTheme();
+  const t = $('#themeMenu'); if (t) t.hidden = true;
+  renderThemeMenu();
+  toast(UI.theme === 'light' ? 'Tema claro' : UI.theme === 'dark' ? 'Tema oscuro' : 'Tema automático');
+};
 ACT.settings = () => openSheet({ fn: shSettings, title: 'Ajustes' });
 ACT['demo-on'] = () => { S.demo = true; S.demoDocs = new Map(demoDocs().map(d => [d.id, d])); runPlans(true); if (SH.open) closeSheet(); UI.tab = 'resumen'; render(true); };
 ACT['demo-off'] = () => { S.demo = false; S.demoDocs = new Map(); if (SH.open) closeSheet(); if (S.needPlans) { S.needPlans = false; runPlans(); } render(true); };
 ACT['open-asset'] = el => { const id = el.dataset.id; const v = { fn: shAsset, args: [id], live: true, after: () => drawAssetMini(id), title: 'Activo' }; openSheet(v, SH.open && inSheet(el)); };
+ACT['open-broker'] = el => { const id = el.dataset.id; const v = { fn: shBroker, args: [id], title: 'Posición' }; openSheet(v, SH.open && inSheet(el)); };
 ACT['open-cash'] = el => { const id = el.dataset.id; const v = { fn: shCash, args: [id], live: true, after: () => drawCashMini(id), title: 'Cuenta' }; openSheet(v, SH.open && inSheet(el)); };
 ACT['edit-plan'] = el => { const v = { fn: shPlan, args: [{ planId: el.dataset.id }], title: 'Plan' }; openSheet(v, SH.open && inSheet(el)); };
 ACT['toggle-plan'] = el => {
@@ -2051,32 +2450,11 @@ ACT['plan-del'] = el => { const id = el.dataset.id; const before = [snap(id)]; r
 ACT.pick = async el => {
   const src = el.dataset.src, i = +el.dataset.i;
   if (src === 'mine') { const a = AD.mine[i]; if (a) openSheet({ fn: shTx, args: [{ assetId: a.id }], title: 'Operación' }, true); return; }
-  const item = src === 'online' ? (AD.online || [])[i] : AD.cat[i];
+  const item = AD.cat[i];
   if (!item) return;
   const existing = item.symbol && all('asset').find(a => a.symbol && a.symbol === item.symbol);
   if (existing) { openSheet({ fn: shTx, args: [{ assetId: existing.id }], title: 'Operación' }, true); return; }
-  const draft = { name: item.name, symbol: item.symbol || '', type: item.type, currency: item.currency || null, isin: item.isin || '', exch: item.exch || '' };
-  if (online() && (draft.symbol || draft.isin)) {
-    openSheet({ fn: shLoading, args: ['Trayendo la cotización de Yahoo Finance...'] }, true);
-    try {
-      if (!draft.symbol && draft.isin) { const r = await ySearch(draft.isin); if (r[0]) { draft.symbol = r[0].symbol; if (!draft.type) draft.type = r[0].type; } }
-      if (draft.symbol) {
-        const c = await yChart(draft.symbol);
-        Object.assign(draft, { currency: c.currency, price: c.price, prev: c.prev, hist: c.hist });
-        if (!draft.name && c.name) draft.name = c.name;
-        const cur = draft.currency === 'GBp' ? 'GBP' : draft.currency;
-        if (cur && cur !== 'EUR' && !fxNow(cur)) {
-          try { const fx = await yChart(cur + 'EUR=X'); const st = clone(settings()); st.fx = Object.assign({}, st.fx, { [cur]: fx.price }); st.fxHist = Object.assign({}, st.fxHist, { [cur]: fx.hist }); put(st, true); }
-          catch (e) { diag('cambio ' + cur + ' falló'); }
-        }
-      } else toast('No encontré ese ISIN en Yahoo Finance. Pon el precio a mano.');
-    } catch (e) { toast(browserErr(e)); diag('cotización: ' + (e && (e.code || e.message))); }
-    if (!SH.open) return;
-    SH.stack.pop();
-  }
-  const unknownCur = !draft.currency;
-  if (unknownCur) draft.currency = 'EUR';
-  if (draft.symbol && unknownCur) draft.curCheck = true;
+  const draft = { name: item.name, symbol: item.symbol || '', type: item.type, currency: item.currency || 'EUR', isin: item.isin || '', exch: item.exch || '' };
   openSheet({ fn: shTx, args: [{ draft }], title: 'Operación' }, true);
 };
 ACT['manual-asset'] = () => openSheet({ fn: shManual, title: 'Añadir a mano' }, true);
@@ -2106,38 +2484,6 @@ ACT.day = el => {
   const days = $$('[data-action="day"][aria-pressed="true"]', f).map(b => +b.dataset.d);
   f.elements.days.value = days.join(',');
   if (f.dataset.form === 'plan') updatePlanPreview(f);
-};
-ACT['date-price'] = async el => {
-  const f = el.closest('form'); const ctx = topCtx(); const a = txAsset(ctx);
-  if (!f || !a || !a.symbol) return;
-  const date = f.elements.date.value; if (!validDate(date)) return;
-  el.disabled = true; el.textContent = 'Buscando...';
-  try {
-    const e = toEd(date);
-    const c = parseChart(await webJSON(YH + '/v8/finance/chart/' + encodeURIComponent(a.symbol) + '?period1=' + ((e - 7) * 86400) + '&period2=' + ((e + 1) * 86400) + '&interval=1d'));
-    const i = lastLE(c.hist.t, e);
-    if (i < 0) throw new Error('sin cotización en esa fecha');
-    const px = c.hist.c[i] * mulOf(a) * (fxOn(curOf(a), e) || 1);
-    if (!SH.open || !f.isConnected) return;
-    f.elements.price.value = numIn(px, 4); f.elements.price.dataset.touched = '1'; ctx.price = px;
-    txRecalc(f, 'price');
-    const h = $('#priceHelp'); if (h) h.textContent = 'Cierre del ' + datef(fromEd(c.hist.t[i])) + ': ' + pxf(px) + '. Cámbialo si pagaste otro precio.';
-  } catch (e) { toast(browserErr(e)); if (el.isConnected) { el.disabled = false; el.textContent = 'Traer el precio de esa fecha'; } }
-};
-ACT['fill-hist'] = async el => {
-  B.busy = true; el.disabled = true;
-  try { await fillHistory(el.dataset.id); } catch (e) { toast(browserErr(e)); }
-  finally { B.busy = false; renderTop(); refreshOpenSheet(); }
-};
-ACT['fill-all'] = async () => {
-  if (B.busy) return;
-  B.busy = true; renderTop();
-  let n = 0;
-  try {
-    for (const a of all('asset').filter(x => x.symbol && (x.txs || []).some(t => t.auto && (t.pending || t.est)))) n += await fillHistory(a.id, true);
-    toast(n ? 'Precio completado en ' + n + (n === 1 ? ' aportación' : ' aportaciones') : 'No encontré precios nuevos para esas fechas');
-  } catch (e) { toast(browserErr(e)); }
-  finally { B.busy = false; renderTop(); }
 };
 ACT['asset-del'] = el => {
   const id = el.dataset.id; const before = [snap(id)];
@@ -2185,11 +2531,20 @@ ACT.wipe = el => {
 };
 
 /* ---------- Formularios */
+FORM.trurl = f => {
+  const raw = f.elements.url.value.trim();
+  const url = cleanProxyLocal(raw);
+  if (!url && raw) { toast('La dirección debe ser http://localhost:8788 o https://...'); return; }
+  TR.localUrl = url;
+  lsSet(LS_TR_URL, { url });
+  toast(url ? 'Servidor local de Trade Republic guardado' : 'Servidor local de Trade Republic quitado');
+  renderBrokers();
+};
 FORM.proxy = async f => {
   const raw = f.elements.url.value.trim();
   const msg = f.querySelector('#pxMsg');
   const say = (t, err) => { if (msg) { msg.textContent = t; msg.classList.toggle('err', !!err); } };
-  if (!raw) { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; onlineUI(); toast('Servidor de precios quitado'); return; }
+  if (!raw) { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; renderBrokers(); toast('Servidor de brokers quitado'); return; }
   const url = cleanProxy(raw);
   if (!url) { say('La dirección tiene que empezar por https://', true); return; }
   const btn = f.querySelector('button[type="submit"]');
@@ -2197,33 +2552,26 @@ FORM.proxy = async f => {
   const prev = B.proxy;
   B.proxy = url;
   try {
-    const j = await proxyJSON(YH + '/v8/finance/spark?symbols=EURUSD%3DX&range=5d&interval=1d');
-    if (!j || typeof j !== 'object' || !Object.keys(j).length) throw new Error('respuesta vacía');
+    const j = await brokerFetch('/');
+    if (!j || j.servicio !== 'cartera-brokers') throw new Error('no es el servidor de brokers');
     lsSet(LS_PROXY, { url });
-    diag('servidor de precios conectado');
-    toast('Servidor de precios conectado');
-    onlineUI();
-    if (all('asset').some(a => a.symbol)) refreshPrices();
+    diag('servidor de brokers conectado');
+    toast('Servidor de brokers conectado');
+    renderBrokers();
   } catch (e) {
     B.proxy = prev;
     diag('prueba del servidor falló: ' + (e && (e.code || '')) + ' ' + (e && e.message));
-    say(browserErr(e), true);
+    say(brokerErr(e), true);
     if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = 'Guardar y probar'; }
   }
 };
-FORM.search = async f => {
+FORM.search = f => {
   const q = f.elements.q.value.trim(); AD.q = q;
-  if (!q) { paintResults(); return; }
-  if (!online()) { paintResults(); if (!S.demo && B.checked) toast(STANDALONE ? 'Configura tu servidor de precios en Ajustes para buscar online.' : 'La búsqueda online funciona en la app de escritorio de Claude.'); return; }
-  AD.searching = true; AD.err = ''; AD.lastQ = q; paintResults();
-  try { AD.online = await ySearch(q); }
-  catch (e) { AD.err = browserErr(e); AD.online = null; diag('búsqueda: ' + (e && (e.code || e.message))); }
-  AD.searching = false; paintResults();
+  paintResults();
 };
 INPUT.search = (f, t) => {
   if (t.name !== 'q') return;
   AD.q = t.value;
-  if (AD.online && t.value.trim() !== AD.lastQ) { AD.online = null; AD.err = ''; }
   paintResults();
 };
 FORM.manual = f => {
@@ -2387,11 +2735,20 @@ FORM.import = f => {
    ========================================================= */
 function bindGlobal() {
   document.addEventListener('click', e => {
+    if (!e.target.closest('.rate-wrap')) {
+      const rm = $('#rateMenu'); if (rm && !rm.hidden) rm.hidden = true;
+      const tm = $('#themeMenu'); if (tm && !tm.hidden) tm.hidden = true;
+    }
     const el = e.target.closest('[data-action]'); if (!el) return;
     const fn = ACT[el.dataset.action]; if (!fn) return;
     if (el.tagName === 'A') return;
     e.preventDefault(); fn(el, e);
   });
+  // Si un logo no carga, se quita y quedan las letras de la insignia.
+  document.addEventListener('error', e => {
+    const t = e.target;
+    if (t && t.tagName === 'IMG' && t.classList && t.classList.contains('logo')) t.remove();
+  }, true);
   document.addEventListener('submit', e => {
     const f = e.target.closest('form[data-form]'); if (!f) return;
     e.preventDefault();
@@ -2408,7 +2765,12 @@ function bindGlobal() {
   });
   $('#scrim').addEventListener('click', () => closeSheet());
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && SH.open) { e.preventDefault(); sheetBack(); return; }
+    const rm = $('#rateMenu'), tm = $('#themeMenu');
+    if (e.key === 'Escape') {
+      if (rm && !rm.hidden) { rm.hidden = true; e.preventDefault(); return; }
+      if (tm && !tm.hidden) { tm.hidden = true; e.preventDefault(); return; }
+      if (SH.open) { e.preventDefault(); sheetBack(); return; }
+    }
     const t = e.target;
     if ((e.key === 'Enter' || e.key === ' ') && t && t.getAttribute && t.getAttribute('role') === 'button' && t.dataset.action) { e.preventDefault(); t.click(); }
   });
@@ -2422,21 +2784,36 @@ function boot() {
     if (saved.filter) UI.filter = saved.filter;
     if (saved.sort) UI.sort = saved.sort;
   }
+  const ar = lsGet(LS_AUTOREFRESH);
+  if (ar && AUTO_OPTS.includes(ar.s)) UI.refresh = ar.s;
+  const th = lsGet(LS_THEME);
+  if (th && ['auto', 'light', 'dark'].includes(th.t)) UI.theme = th.t;
+  applyTheme(); logoCacheLoad();
   const h = String(location.hash || '').slice(1);
   if (TABS.includes(h)) UI.tab = h;
   bindGlobal(); initDrag();
   if (STANDALONE) {
-    const rb = $('#refreshBtn'); if (rb) rb.hidden = true;
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* sin persistencia */ }
   }
+  t212CacheLoad(); trCacheLoad();
   render();
-  initStore(); initBrowser();
+  initStore(); initBrokers();
   setInterval(() => {
     if (S.retry.size && S.mode === 'db') { const ids = Array.from(S.retry); S.retry.clear(); for (const id of ids) writeDoc(id); }
   }, 10000);
   setInterval(() => { renderTop(); }, 60000);
   setInterval(() => { if (S.mode === 'db' || S.mode === 'local') runPlans(); }, 30 * 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && (S.mode === 'db' || S.mode === 'local')) { runPlans(); renderTop(); autoRefresh(); } });
+  // Actualización automática de brokers (frecuencia configurable arriba a la derecha).
+  let lastAuto = Date.now();
+  setInterval(() => {
+    if (!STANDALONE || S.demo || UI.refresh <= 0) return;
+    if (Date.now() - lastAuto < UI.refresh * 1000) return;
+    if (AR.t212 || AR.tr) return;
+    lastAuto = Date.now();
+    autoRefreshNow();
+  }, 1000);
+  setTimeout(() => { if (STANDALONE && !S.demo) autoRefreshNow(); }, 1500);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && (S.mode === 'db' || S.mode === 'local')) { runPlans(); renderTop(); if (STANDALONE && !S.demo) autoRefreshNow(); } });
 }
 window.__cartera = { calcPos, cashCalc, planDates, history, priceOn, runPlans, S, D, model };
 boot();

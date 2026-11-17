@@ -1,10 +1,10 @@
 'use strict';
 /* Pruebas de humo con jsdom: npm install && npm test
    1) Versión Claude abierta fuera de Claude (modo local) + cartera de ejemplo
-   2) Versión Claude con base de datos y Yahoo Finance simulados
-   3) Versión web instalable (modo independiente), sin servidor de precios
-   4) Versión web con servidor de precios simulado
-   5) Servidor de precios (worker/precios.js) con Yahoo simulado */
+   2) Versión Claude con base de datos simulada
+   3) Versión web instalable (modo independiente), sin servidor de brokers
+   4) Versión web con servidor de brokers simulado (Trading 212)
+   5) Servidor de brokers (worker/precios.js) con Trading 212 simulado */
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
@@ -50,7 +50,6 @@ async function testLocalDemo() {
   const before = d.querySelectorAll('.tx-list li').length;
   d.querySelector('[data-action="tx-new"]').click(); await sleep(40);
   const f = d.querySelector('form[data-form="tx"]');
-  ok('precio sugerido', f.elements.price.value !== '');
   f.elements.qty.value = '2'; fire(w, f, 'submit'); await sleep(80);
   ok('guarda una compra', d.querySelectorAll('.tx-list li').length === before + 1);
   d.querySelector('[data-action="sheet-close"]').click(); await sleep(600);
@@ -68,43 +67,20 @@ async function testLocalDemo() {
 }
 
 async function testDbMock() {
-  console.log('2) Versión Claude con base de datos y Yahoo simulados');
+  console.log('2) Versión Claude con base de datos simulada (sin Yahoo)');
   const store = new Map(); const listeners = [];
   const emit = () => { const snap = { docs: [...store.entries()].map(([id, x]) => ({ id, data: () => JSON.parse(JSON.stringify(x)) })) }; listeners.forEach(cb => setTimeout(() => cb(snap), 5)); };
-  const now = Math.floor(Date.now() / 1000);
-  const series = (n, p0, step) => { const ts = [], c = []; for (let i = n; i >= 0; i--) { ts.push(now - i * 86400); c.push(+(p0 + (n - i) * step).toFixed(2)); } return { ts, c }; };
-  let cur = '';
-  const page = url => {
-    let body;
-    if (url.includes('/v1/finance/search')) body = { quotes: [{ quoteType: 'EQUITY', symbol: 'AAPL', longname: 'Apple Inc.', exchDisp: 'NASDAQ' }] };
-    else if (url.includes('/v8/finance/chart/')) { const sym = decodeURIComponent(url.split('/chart/')[1].split('?')[0]); const s = series(250, sym === 'AAPL' ? 200 : 0.9, sym === 'AAPL' ? 0.1 : 0); body = { chart: { result: [{ meta: { currency: sym === 'AAPL' ? 'USD' : 'EUR', regularMarketPrice: s.c[s.c.length - 1] }, timestamp: s.ts, indicators: { quote: [{ close: s.c }] } }] } }; }
-    else { const syms = decodeURIComponent(url.split('symbols=')[1].split('&')[0]).split(','); body = {}; for (const sym of syms) { const s = series(250, sym === 'AAPL' ? 210 : 0.9, sym === 'AAPL' ? 0.1 : 0); body[sym] = { timestamp: s.ts, close: s.c }; } }
-    return 'Title: \nURL: ' + url + '\n---\n' + JSON.stringify(body) + '\n\nTab Context:\n- tabId seed';
-  };
   const claude = {
     use: async name => {
       if (name === 'db') return { collection: () => ({ doc: id => ({ set: async x => { store.set(id, x); emit(); }, delete: async () => { store.delete(id); emit(); } }), onSnapshot: cb => { listeners.push(cb); emit(); return () => {}; } }) };
       if (name === 'user') return { id: async () => 'u_prueba' };
-      if (name === 'mcp') return { callTool: async (s, tool, input) => { if (tool === 'preview_start') { cur = input.url; return { payload: '{"tabId":"seed"}' }; } if (tool === 'navigate') { cur = input.url; return { payload: 'ok' }; } return { payload: page(cur) }; } };
       return null;
     }
   };
   const { w, d, errors } = open(claudeHtml, { claude });
   await sleep(300);
   ok('conecta con la base de datos', w.__cartera.S.mode === 'db');
-  d.querySelector('[data-action="add-inv"]').click(); await sleep(50);
-  const q = d.querySelector('#f-q'); q.value = 'apple'; fire(w, q, 'input');
-  fire(w, d.querySelector('form[data-form="search"]'), 'submit'); await sleep(100);
-  ok('búsqueda online', d.querySelectorAll('#results [data-src="online"]').length === 1);
-  d.querySelector('#results [data-src="online"]').click(); await sleep(200);
-  const f = d.querySelector('form[data-form="tx"]');
-  ok('precio convertido a euros', f.elements.price.value === '202,5', f.elements.price.value);
-  f.elements.qty.value = '10'; fire(w, f, 'submit'); await sleep(300);
-  const a = [...store.values()].find(x => x.kind === 'asset');
-  ok('guarda el activo en la base de datos', a && a.symbol === 'AAPL' && a.currency === 'USD' && a.txs.length === 1);
-  ok('guarda el tipo de cambio', store.get('settings') && store.get('settings').fx.USD === 0.9);
-  d.querySelector('#refreshBtn').click(); await sleep(300);
-  ok('actualiza precios', [...store.values()].find(x => x.kind === 'asset').price === 235);
+  // La versión de Claude no muestra la sección de brokers (solo la web instalable).
   ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
   w.close();
 }
@@ -115,85 +91,154 @@ async function testWeb() {
   await sleep(200);
   ok('modo independiente', w.__cartera.S.mode === 'local');
   ok('enlaza el manifiesto', !!d.querySelector('link[rel="manifest"]'));
-  ok('oculta la actualización de precios', d.querySelector('#refreshBtn').hidden === true);
+  ok('ya no hay botón de precios (Yahoo)', !d.querySelector('#refreshBtn'));
   ok('aviso de datos en el dispositivo', /este dispositivo/.test(d.querySelector('#banner').textContent));
   ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
   w.close();
 }
 
-function yahooBody(url) {
-  const now = Math.floor(Date.now() / 1000);
-  const series = (n, p0, step) => { const ts = [], c = []; for (let i = n; i >= 0; i--) { ts.push(now - i * 86400); c.push(+(p0 + (n - i) * step).toFixed(2)); } return { ts, c }; };
-  if (url.includes('/v1/finance/search')) return { quotes: [{ quoteType: 'EQUITY', symbol: 'AMZN', longname: 'Amazon.com, Inc.', exchDisp: 'NASDAQ' }] };
-  if (url.includes('/v8/finance/chart/')) {
-    const sym = decodeURIComponent(url.split('/chart/')[1].split('?')[0]);
-    const s = series(250, sym === 'AMZN' ? 180 : 0.9, sym === 'AMZN' ? 0.1 : 0);
-    return { chart: { result: [{ meta: { currency: sym === 'AMZN' ? 'USD' : 'EUR', regularMarketPrice: s.c[s.c.length - 1] }, timestamp: s.ts, indicators: { quote: [{ close: s.c }] } }] } };
-  }
-  const syms = decodeURIComponent(url.split('symbols=')[1].split('&')[0]).split(',');
-  const out = {};
-  for (const sym of syms) { const s = series(250, sym === 'AMZN' ? 190 : 0.9, sym === 'AMZN' ? 0.1 : 0); out[sym] = { timestamp: s.ts, close: s.c }; }
-  return out;
-}
-const resp = (obj, status) => ({ ok: (status || 200) < 400, status: status || 200, text: async () => JSON.stringify(obj), json: async () => obj });
-
-async function testWebProxy() {
-  console.log('4) Versión web con servidor de precios');
+async function testWebBrokers() {
+  console.log('4) Versión web con servidor de brokers (Trading 212)');
   const calls = [];
-  const fetchMock = async url => {
+  const t212Account = { id: 12345, currency: 'EUR', totalValue: 6584.56,
+    cash: { availableToTrade: 1000, inPies: 0, reservedForOrders: 0 },
+    investments: { currentValue: 5584.56, totalCost: 5234.56, unrealizedProfitLoss: 350, realizedProfitLoss: 12.5 } };
+  const t212Positions = [{ quantity: 5.5, averagePricePaid: 180, currentPrice: 210,
+    instrument: { currency: 'USD', isin: 'US0378331005', name: 'Apple Inc.', ticker: 'AAPL_US_EQ' },
+    walletImpact: { currency: 'EUR', currentValue: 1155, fxImpact: 3.2, totalCost: 990, unrealizedProfitLoss: 165 } }];
+  const fetchMock = async (url, init) => {
     url = String(url); calls.push(url);
-    if (url.endsWith('config.json')) return resp({ priceProxy: 'https://precios.test' });
-    if (!url.startsWith('https://precios.test/')) throw new Error('dirección inesperada ' + url);
-    return resp(yahooBody(url));
+    if (url.endsWith('config.json')) return resp({ brokerProxy: 'https://brokers.test' });
+    if (url === 'https://brokers.test/') return resp({ ok: true, servicio: 'cartera-brokers' });
+    if (url === 'https://brokers.test/t212/account') return resp(t212Account);
+    if (url === 'https://brokers.test/t212/positions') return resp(t212Positions);
+    // Trade Republic usa un servidor local aparte.
+    if (url === 'http://localhost:8788/login') return resp({ ok: true, status: 'qr' });
+    if (url === 'http://localhost:8788/qr') return resp({ ok: true, status: 'pending', qrPayload: 'https://tr.test/qr' });
+    if (url === 'http://localhost:8788/status') return resp({ ok: true, status: 'connected' });
+    if (url === 'http://localhost:8788/portfolio') return resp({
+      ok: true,
+      positions: [
+        { name: 'ETF Global', isin: 'IE00B4L5Y983', netSize: 10, averageBuyIn: 92.5, currency: 'EUR', invested: 925, currentPrice: 95, value: 950, ppl: 25, instrumentType: 'etf' },
+        { name: 'Bitcoin', isin: 'XF000BTC0017', netSize: 0.01, averageBuyIn: 40000, currency: 'EUR', invested: 400, currentPrice: null, value: null, ppl: null, instrumentType: 'crypto' }
+      ],
+      cash: [{ amount: 100.5, currency: 'EUR' }],
+      plans: [
+        { id: 'p1', instrumentId: 'IE00B4L5Y983', amount: 100, interval: 'monthly', instrumentType: 'fund', paused: false, nextExecutionDate: '2026-12-02' },
+        { id: 'p2', instrumentId: 'XF000BTC0017', amount: 50, interval: 'twoPerMonth', instrumentType: 'crypto', paused: false, nextExecutionDate: '2026-12-02' }
+      ]
+    });
+    // Precio de criptos: CoinGecko.
+    if (url.startsWith('https://api.coingecko.com/')) return resp({ bitcoin: { eur: 50000 } });
+    // Logos por ISIN: Wikidata (SPARQL).
+    if (url.startsWith('https://query.wikidata.org/sparql')) {
+      return resp({ results: { bindings: [{ logo: { type: 'uri', value: 'http://commons.wikimedia.org/wiki/Special:FilePath/Apple%20logo%20black.svg' } }] } });
+    }
+    throw new Error('dirección inesperada ' + url);
   };
   const { w, d, errors } = open(webHtml, { full: true, fetch: fetchMock });
   await sleep(250);
   ok('lee config.json', calls.some(u => u.endsWith('config.json')));
-  ok('muestra el botón de precios', d.querySelector('#refreshBtn').hidden === false);
-  d.querySelector('[data-action="add-inv"]').click(); await sleep(60);
-  ok('ofrece buscar online', /Buscar online/.test(d.querySelector('form[data-form="search"] button[type=submit]').textContent));
-  const q = d.querySelector('#f-q'); q.value = 'amazon'; fire(w, q, 'input');
-  fire(w, d.querySelector('form[data-form="search"]'), 'submit'); await sleep(100);
-  ok('encuentra Amazon en Yahoo', /Amazon/.test(d.querySelector('#results [data-src="online"]').textContent));
-  d.querySelector('#results [data-src="online"]').click(); await sleep(200);
-  const f = d.querySelector('form[data-form="tx"]');
-  ok('trae el precio en euros', f.elements.price.value === '184,5', f.elements.price.value);
-  ok('ya no pone Sin precio', !/Sin precio/.test(d.querySelector('.chosen').textContent));
-  f.elements.qty.value = '3'; fire(w, f, 'submit'); await sleep(700);
-  d.querySelector('#refreshBtn').click(); await sleep(300);
-  const a = [...w.__cartera.D().values()].find(x => x.kind === 'asset');
-  ok('actualiza la cotización', a.price === 215, String(a.price));
   d.querySelector('[data-action="settings"]').click(); await sleep(60);
-  ok('Ajustes muestra el servidor', /Activos con tu servidor/.test(d.querySelector('.kv').textContent) && d.querySelector('#px-url').value === 'https://precios.test');
-  ok('todas las consultas van a tu servidor', calls.filter(u => !u.endsWith('config.json')).every(u => u.startsWith('https://precios.test/v')));
+  ok('Ajustes muestra el servidor', d.querySelector('#px-url').value === 'https://brokers.test');
+  // Trading 212
+  d.querySelector('[data-action="t212-load"]').click(); await sleep(120);
+  const tbody = d.querySelector('#t212Body');
+  ok('muestra la cuenta de Trading 212', /Disponible/.test(tbody.textContent) && /6.584,56/.test(tbody.textContent), tbody.textContent);
+  ok('muestra posiciones de Trading 212', /Apple Inc/.test(tbody.textContent));
+  ok('guarda Trading 212 en local', JSON.parse(w.localStorage.getItem('cartera.t212.v1')).account.cash.availableToTrade === 1000);
+  // El dashboard debe incluir el valor del broker.
+  const M = w.__cartera.model();
+  ok('el patrimonio incluye Trading 212', M.pos.some(p => p.broker && p.a.source === 't212' && p.value > 0), JSON.stringify(M.pos.map(p => p.a.name)));
+  ok('el reparto incluye Trading 212', M.alloc.some(r => r.l === 'Trading 212' && r.v > 0));
+  // La liquidez de los brokers suma al total.
+  ok('el efectivo de Trading 212 suma a la liquidez', M.t212Cash === 1000 && M.cashTotal >= 1000, String(M.cashTotal));
+  // Posición en USD de Trading 212: no debe pedir conversión (el broker ya valora en EUR).
+  ok('sin aviso de tipo de cambio', !/Falta el tipo de cambio/.test(d.querySelector('#banner').textContent), d.querySelector('#banner').textContent);
+  // Botón de frecuencia de actualización (arriba a la derecha, con menú).
+  const rateLbl = d.querySelector('#refreshRateLbl');
+  ok('botón de frecuencia muestra 5s', rateLbl && rateLbl.textContent === '5s');
+  d.querySelector('#refreshRateBtn').click(); await sleep(40);
+  ok('se abre el menú de frecuencia', d.querySelector('#rateMenu').hidden === false);
+  d.querySelector('#rateMenu [data-s="30"]').click(); await sleep(40);
+  ok('el menú elige la frecuencia', d.querySelector('#refreshRateLbl').textContent === '30s' && d.querySelector('#rateMenu').hidden === true);
+  ok('la frecuencia elegida se guarda', JSON.parse(w.localStorage.getItem('cartera.autoRefresh.v1')).s === 30);
+  // Tema en la cabecera (junto al botón de frecuencia).
+  d.querySelector('#themeBtn').click(); await sleep(30);
+  ok('se abre el menú de tema', d.querySelector('#themeMenu').hidden === false);
+  const tchip = dv => d.querySelector('#themeMenu [data-action="theme-set"][data-v="' + dv + '"]');
+  tchip('light').click(); await sleep(30);
+  ok('tema claro forzado', d.documentElement.getAttribute('data-theme') === 'light');
+  tchip('dark').click(); await sleep(30);
+  ok('tema oscuro forzado', d.documentElement.getAttribute('data-theme') === 'dark');
+  tchip('auto').click(); await sleep(30);
+  ok('tema automático sin atributo', d.documentElement.getAttribute('data-theme') === null);
+  // Trade Republic (servidor local)
+  const trUrl = d.querySelector('#tr-url'); trUrl.value = 'http://localhost:8788';
+  fire(w, trUrl.closest('form'), 'submit'); await sleep(60);
+  d.querySelector('[data-action="tr-login"]').click(); await sleep(120);
+  ok('muestra el QR de Trade Republic', !!d.querySelector('#qrBox img'));
+  d.querySelector('[data-action="tr-check"]').click(); await sleep(120);
+  const trCache = JSON.parse(w.localStorage.getItem('cartera.tr.v1'));
+  ok('conecta Trade Republic y guarda posiciones', trCache.positions.length === 2 && trCache.positions[0].name === 'ETF Global', JSON.stringify(trCache.positions.map(p => p.name)));
+  ok('guarda los planes de ahorro', trCache.plans.length === 2);
+  const MT = w.__cartera.model();
+  ok('el patrimonio incluye Trade Republic con P/L', MT.pos.some(p => p.broker && p.a.source === 'tr' && p.pnl === 25), JSON.stringify(MT.pos.filter(p => p.a.source === 'tr')));
+  ok('Bitcoin tiene P/L (CoinGecko para cripto)', MT.pos.some(p => p.broker && p.a.source === 'tr' && p.a.isin === 'XF000BTC0017' && p.pnl === 100), JSON.stringify(MT.pos.filter(p => p.a.source === 'tr' && p.a.isin === 'XF000BTC0017')));
+  ok('la liquidez de Trade Republic también suma', MT.trCash === 100.5 && MT.cashTotal === 1100.5, String(MT.cashTotal));
+  ok('muestra los planes en la sección con su instrumento', /ETF Global/.test(d.querySelector('#trBody').textContent) && /Bitcoin/.test(d.querySelector('#trBody').textContent), d.querySelector('#trBody').textContent);
+  // La pestaña Planes muestra los planes de Trade Republic ponderando el intervalo.
+  d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
+  d.querySelector('#topTabs [data-tab="planes"]').click(); await sleep(60);
+  const view = d.querySelector('#view');
+  ok('la pestaña Planes muestra los planes con su instrumento', /ETF Global/.test(view.textContent) && /Bitcoin/.test(view.textContent), view.textContent.slice(0, 600));
+  ok('muestra el intervalo legible', /Dos veces al mes|Mensual/.test(view.textContent));
+  ok('ponderación twoPerMonth ×2 y monthly ×1', view.textContent.includes('200,00'), view.textContent.slice(100, 400));
+  ok('sin la palabra estimado', !/estimado/i.test(view.textContent), view.textContent.slice(100, 400));
+  ok('la pestaña Planes no ofrece crear planes manuales', !d.querySelector('#view [data-action="add-plan"]'));
+  // Separación por tipos en Inversiones (el fondo es ETF, la acción es acción).
+  d.querySelector('#topTabs [data-tab="inversiones"]').click(); await sleep(120);
+  const chipsTxt = Array.from(d.querySelectorAll('#view .chip')).map(c => c.textContent).join(',');
+  ok('hay apartados por tipo', chipsTxt.includes('Acciones') && chipsTxt.includes('ETFs'), chipsTxt);
+  d.querySelector('#view .chip[data-k="etf"]').click(); await sleep(60);
+  ok('ETF filtra solo el fondo', /ETF Global/.test(d.querySelector('#view').textContent) && !/Apple Inc/.test(d.querySelector('#view').textContent), d.querySelector('#view').textContent.slice(0, 300));
+  d.querySelector('#view .chip[data-k="stock"]').click(); await sleep(60);
+  ok('Acciones filtra solo la acción', /Apple Inc/.test(d.querySelector('#view').textContent) && !/ETF Global/.test(d.querySelector('#view').textContent), d.querySelector('#view').textContent.slice(0, 300));
+  d.querySelector('#view .chip[data-k="all"]').click(); await sleep(400);
+  // Logos por ISIN (Wikidata).
+  const logo = d.querySelector('#view img.logo[src*="wikimedia"]');
+  ok('las posiciones muestran logotipo', !!logo, d.querySelector('#view').textContent.slice(0, 300));
   ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
   w.close();
 }
 
+function resp(obj, status) { return { ok: (status || 200) < 400, status: status || 200, text: async () => JSON.stringify(obj), json: async () => obj }; }
+
 async function testWorker() {
-  console.log('5) Servidor de precios');
+  console.log('5) Servidor de brokers (worker/precios.js)');
   const mod = await import(require('url').pathToFileURL(path.join(root, 'worker/precios.js')).href);
   const worker = mod.default;
   const seen = [];
   const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => { seen.push({ url: String(url), init }); return new Response(JSON.stringify(yahooBody(String(url))), { status: 200 }); };
+  globalThis.fetch = async (url, init) => { seen.push({ url: String(url), init }); return new Response(JSON.stringify({ ok: true, ticker: 'AAPL' }), { status: 200 }); };
   try {
     const ORIGIN = 'https://nestoralmale24.github.io';
-    let r = await worker.fetch(new Request('https://w.test/v8/finance/chart/USDEUR%3DX?range=1y&interval=1d&malo=1', { headers: { Origin: ORIGIN } }), {});
-    ok('reenvía el histórico a Yahoo', r.status === 200 && seen[0].url === 'https://query1.finance.yahoo.com/v8/finance/chart/USDEUR%3DX?range=1y&interval=1d', seen[0] && seen[0].url);
-    ok('cabecera CORS para tu web', r.headers.get('Access-Control-Allow-Origin') === ORIGIN);
-    r = await worker.fetch(new Request('https://w.test/v8/finance/spark?symbols=AMZN,EURUSD=X&range=1y&interval=1d', { headers: { Origin: ORIGIN } }), {});
-    ok('reenvía la cotización múltiple', r.status === 200 && /symbols=AMZN%2CEURUSD%3DX/.test(seen[1].url));
-    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=amazon', { headers: { Origin: ORIGIN } }), {});
-    ok('reenvía la búsqueda', r.status === 200 && seen[2].url.startsWith('https://query1.finance.yahoo.com/v1/finance/search?q=amazon'));
-    r = await worker.fetch(new Request('https://w.test/v10/finance/quoteSummary/AAPL', { headers: { Origin: ORIGIN } }), {});
-    ok('rechaza otras rutas', r.status === 404 && seen.length === 3);
-    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=x', { headers: { Origin: 'https://otra-web.example' } }), {});
-    ok('rechaza otras webs', r.status === 403 && seen.length === 3);
-    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=x', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), {});
+    let r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: ORIGIN } }), {});
+    ok('responde con el servicio', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), {});
+    ok('sin claves devuelve error claro', r.status === 200 && JSON.parse(await r.text()).code === 't212_unconfigured');
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), { T212_KEY: 'k', T212_SECRET: 's' });
+    ok('con claves reenvía a Trading 212', seen.some(x => x.url === 'https://live.trading212.com/api/v0/equity/account/summary'), seen.map(x => x.url).join(', '));
+    const authHeader = seen.find(x => x.url.includes('account/summary')).init.headers.Authorization;
+    ok('usa Basic Auth', /^Basic /.test(authHeader));
+    r = await worker.fetch(new Request('https://w.test/v8/finance/chart/AAPL', { method: 'POST', headers: { Origin: ORIGIN } }), {});
+    ok('ya no acepta rutas de Yahoo', r.status === 404);
+    r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: 'https://otra-web.example' } }), { T212_KEY: 'k', T212_SECRET: 's' });
+    ok('rechaza otras webs', r.status === 403);
+    r = await worker.fetch(new Request('https://w.test/tr/login', { headers: { Origin: ORIGIN } }), {});
+    ok('ya no sirve Trade Republic (va al servidor local)', r.status === 404);
+    r = await worker.fetch(new Request('https://w.test/t212/account', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), {});
     ok('responde a la comprobación previa', r.status === 204);
-    r = await worker.fetch(new Request('https://w.test/v1/finance/search?q=x', { headers: { Origin: 'https://otra-web.example' } }), { ALLOWED_ORIGINS: '*' });
-    ok('ALLOWED_ORIGINS="*" abre a cualquier web', r.status === 200);
   } finally { globalThis.fetch = realFetch; }
 }
 
@@ -201,7 +246,7 @@ async function testWorker() {
   await testLocalDemo();
   await testDbMock();
   await testWeb();
-  await testWebProxy();
+  await testWebBrokers();
   await testWorker();
   console.log('Todas las pruebas han pasado.');
 })().catch(e => { console.error('FALLO: ' + e.stack); process.exit(1); });

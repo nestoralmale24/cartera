@@ -14,6 +14,7 @@
   --gain:#0f7a45; --gain-soft:rgba(15,122,69,.10); --loss:#c2302c; --loss-soft:rgba(194,48,44,.10);
   --warn:#9a6200; --warn-soft:rgba(176,116,0,.13);
   --k-stock:#2d4ed6; --k-etf:#14877f; --k-fund:#7b8cc4; --k-crypto:#c98514; --k-cash:#8b93a7; --k-other:#b3b9c6;
+  --k-t212:#5661e8; --k-tr:#b91d73;
   --glass:rgba(241,243,247,.74); --sheet:#fcfcfe; --scrim:rgba(12,16,28,.34);
   --shadow:0 1px 2px rgba(22,34,70,.05),0 6px 20px rgba(22,34,70,.06);
   --shadow-lg:0 30px 80px rgba(22,34,70,.22);
@@ -28,7 +29,7 @@
     --accent:#8197ff; --accent-soft:rgba(129,151,255,.14); --on-accent:#0b0d12;
     --gain:#3fcf8a; --gain-soft:rgba(63,207,138,.13); --loss:#ff6d66; --loss-soft:rgba(255,109,102,.13);
     --warn:#f0b54d; --warn-soft:rgba(240,181,77,.14);
-    --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475;
+    --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475; --k-t212:#8893ff; --k-tr:#e861a8;
     --glass:rgba(11,13,18,.72); --sheet:#161a22; --scrim:rgba(0,0,0,.55);
     --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
     --shadow-lg:0 30px 80px rgba(0,0,0,.6);
@@ -41,7 +42,7 @@
   --accent:#8197ff; --accent-soft:rgba(129,151,255,.14); --on-accent:#0b0d12;
   --gain:#3fcf8a; --gain-soft:rgba(63,207,138,.13); --loss:#ff6d66; --loss-soft:rgba(255,109,102,.13);
   --warn:#f0b54d; --warn-soft:rgba(240,181,77,.14);
-  --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475;
+  --k-stock:#8197ff; --k-etf:#3cc3b8; --k-fund:#a9b4da; --k-crypto:#f0b24a; --k-cash:#8f97aa; --k-other:#5d6475; --k-t212:#8893ff; --k-tr:#e861a8;
   --glass:rgba(11,13,18,.72); --sheet:#161a22; --scrim:rgba(0,0,0,.55);
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
   --shadow-lg:0 30px 80px rgba(0,0,0,.6);
@@ -160,7 +161,16 @@ a.linkbtn svg.i{width:16px;height:16px}
 .r-name .tx{min-width:0}
 .r-name strong{display:block;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .r-name small{display:block;color:var(--ink-3);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.badge{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:11.5px;font-weight:650;letter-spacing:.01em;flex:none;color:var(--k);background:color-mix(in srgb,var(--k) 14%,transparent)}
+.badge{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:11.5px;font-weight:650;letter-spacing:.01em;flex:none;color:var(--k);background:color-mix(in srgb,var(--k) 14%,transparent);position:relative;overflow:hidden}
+.badge img.logo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:2px;box-sizing:border-box}
+img.logo.sm{width:26px;height:26px;border-radius:7px;object-fit:contain;background:#fff;padding:1.5px;box-sizing:border-box;flex:none}
+.simple-list .ll{display:flex;align-items:center;gap:10px;min-width:0}
+.rate-wrap{position:relative}
+.rate-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;background:var(--sheet);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);padding:6px;z-index:70;text-align:left}
+.rate-menu button{display:flex;width:100%;align-items:center;justify-content:space-between;padding:9px 12px;border:0;background:none;border-radius:9px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left}
+.rate-menu button:hover{background:var(--surface-2)}
+.rate-menu button[aria-pressed="true"]{color:var(--accent);font-weight:600}
+.rate-sep{margin:4px 8px;border-top:1px solid var(--line)}
 .r-num{font-variant-numeric:tabular-nums;font-size:14.5px;min-width:0}
 .r-num small{display:block;font-size:12.5px}
 .spark{width:92px;height:30px}
@@ -174,6 +184,7 @@ a.linkbtn svg.i{width:16px;height:16px}
 .pill.loss{background:var(--loss-soft);color:var(--loss)}
 .pill.warn{background:var(--warn-soft);color:var(--warn)}
 .pill.acc{background:var(--accent-soft);color:var(--accent)}
+.pill.src{background:var(--surface-2);color:var(--ink-2);font-size:11px;margin-right:6px}
 .simple-list{display:grid;margin:0;padding:0;list-style:none}
 .simple-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;min-width:0}
 .simple-list li + li{border-top:1px solid var(--line)}
@@ -297,6 +308,8 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
 .loading-box .spin{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--accent);border-right-color:transparent;animation:spin .7s linear infinite}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13.5px;margin:0}
 .kv dt{color:var(--ink-2)} .kv dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.qr-box{display:flex;justify-content:center;padding:16px 0}
+.qr-box img{border-radius:12px;background:#fff;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
 .links{display:flex;gap:18px;flex-wrap:wrap}
 
 /* ---------- toast */
@@ -358,7 +371,25 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
         <button role="tab" data-action="tab" data-tab="planes">Planes</button>
       </nav>
       <div class="actions">
-        <button class="btn ghost sm" data-action="refresh" id="refreshBtn" title="Actualizar precios"><svg class="i" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="hide-m" id="priceAge">Actualizar precios</span></button>
+        <div class="rate-wrap">
+          <button class="iconbtn" data-action="theme-menu" id="themeBtn" title="Tema" aria-label="Tema"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></button>
+          <div class="rate-menu" id="themeMenu" hidden>
+            <button type="button" data-action="theme-set" data-v="auto">Automático</button>
+            <button type="button" data-action="theme-set" data-v="light">Claro</button>
+            <button type="button" data-action="theme-set" data-v="dark">Oscuro</button>
+          </div>
+        </div>
+        <div class="rate-wrap">
+          <button class="btn ghost sm" data-action="refresh-rate" id="refreshRateBtn" title="Frecuencia de actualización automática"><svg class="i" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="hide-m" id="refreshRateLbl">5s</span></button>
+          <div class="rate-menu" id="rateMenu" hidden>
+            <button type="button" data-action="rate-set" data-s="5">Cada 5 s</button>
+            <button type="button" data-action="rate-set" data-s="15">Cada 15 s</button>
+            <button type="button" data-action="rate-set" data-s="30">Cada 30 s</button>
+            <button type="button" data-action="rate-set" data-s="60">Cada 60 s</button>
+            <div class="rate-sep"></div>
+            <button type="button" data-action="rate-set" data-s="0">Apagado</button>
+          </div>
+        </div>
         <button class="iconbtn" data-action="settings" aria-label="Ajustes y copia de seguridad"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
         <button class="btn primary sm" data-action="add" aria-label="Añadir"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="hide-m">Añadir</span></button>
       </div>

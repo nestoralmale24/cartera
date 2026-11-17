@@ -1,0 +1,13 @@
+{
+  "name": "cartera-tr-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor local que hace de puente con Trade Republic (no oficial) para Cartera. Usa trapi (Bun) para el flujo QR de login y sirve el portfolio en solo lectura.",
+  "scripts": {
+    "start": "bun server.mjs"
+  },
+  "dependencies": {
+    "trapi": "github:NightOwl07/trade-republic-api"
+  }
+}
