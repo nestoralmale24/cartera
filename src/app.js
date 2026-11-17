@@ -626,6 +626,7 @@ async function initBrokers() {
   const own = lsGet(LS_PROXY);
   B.proxy = own && typeof own.url === 'string' ? cleanProxy(own.url) : B.cfgProxy;
   B.checked = true;
+  if (!B.proxy) discardT212(); // sin URL guardada, los datos del broker se quedan fuera
   diag('brokers: ' + (B.proxy ? 'servidor ' + B.proxy.replace(/^https?:\/\//, '') : 'sin servidor configurado'));
   renderBrokers();
 }
@@ -688,7 +689,7 @@ async function loadT212(silent) {
 }
 
 /* ---------- Trade Republic (servidor local) ---------- */
-const TR = { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, at: null, localUrl: '' };
+const TR = { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, at: null, poll: null, localUrl: '' };
 const LS_TR_URL = 'cartera.tr.url.v1';
 const AR = { t212: false, tr: false, trh: false };
 function trLocal() { return cleanProxyLocal(TR.localUrl); }
@@ -743,6 +744,7 @@ async function trLogin() {
       if (!TR.qr) await new Promise(r => setTimeout(r, 700));
     }
     if (!TR.qr) { TR.err = 'No llegó el código QR. Reintenta.'; TR.state = 'err'; }
+    else trStartPoll(); // en cuanto confirme, carga el portfolio solo
   } catch (e) { TR.err = trErr(e); TR.state = 'err'; }
   renderBrokers();
 }
@@ -811,11 +813,40 @@ async function trFetchPortfolio(silent) {
 async function trCheck() {
   try {
     const s = await trFetch('/status');
-    if (s && s.status === 'connected') { TR.state = 'ok'; await trFetchPortfolio(true); }
+    if (s && s.status === 'connected') { trStopPoll(); TR.state = 'ok'; await trFetchPortfolio(true); }
     else if (s && s.status === 'pending') { /* sigue esperando el QR */ TR.state = 'qr'; }
     else { TR.err = s && s.error ? s.error : 'Aún no confirmado.'; TR.state = 'err'; }
   } catch (e) { TR.err = trErr(e); TR.state = 'err'; }
   renderBrokers();
+}
+/* Sondeo automático mientras se muestra el QR: en cuanto el servidor confirma
+   la vinculación, el portfolio se carga solo, sin pulsar "Ya lo he escaneado".
+   Se detiene al conectar, fallar o quitar el broker. */
+function trStopPoll() {
+  if (TR.poll) { clearInterval(TR.poll); TR.poll = null; }
+}
+async function trPollOnce() {
+  if (TR.state !== 'qr') { trStopPoll(); return; }
+  let s = null;
+  try { s = await trFetch('/status'); } catch (e) { return; } // ocupado: el siguiente intento decidirá
+  if (!s || (s.status !== 'connected' && s.status !== 'pending')) {
+    trStopPoll();
+    TR.state = 'err';
+    TR.err = (s && s.error) || 'No se pudo confirmar la vinculación. Reintenta.';
+    TR.qr = null;
+    renderBrokers();
+    return;
+  }
+  if (s.status === 'connected') {
+    trStopPoll();
+    TR.state = 'ok'; TR.err = '';
+    await trFetchPortfolio(true);
+    renderBrokers();
+  }
+}
+function trStartPoll() {
+  trStopPoll();
+  TR.poll = setInterval(trPollOnce, 2000);
 }
 async function trLoadSilent() {
   // Solo refresca si hay sesión; si aún no hay QR no insiste.
@@ -880,6 +911,21 @@ async function trSyncHistories() {
   if (changed) { trHistCacheSave(); MEMO = null; UI.histCache = null; render(true); }
 }
 
+/* ---------- Regla "sin URL, sin datos" ---------- */
+/* Quitar la dirección de un broker borra también su caché en este dispositivo. */
+function discardT212() {
+  Object.assign(T, { state: 'idle', err: '', account: null, positions: null, at: null, nextRetry: 0 });
+  try { localStorage.removeItem(LS_T212); } catch (e) { /* sin almacenamiento */ }
+}
+function discardTR() {
+  trStopPoll();
+  Object.assign(TR, { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, at: null, poll: null });
+  TRH.by = {};
+  try { localStorage.removeItem(LS_TR); localStorage.removeItem(LS_TRH); } catch (e) { /* sin almacenamiento */ }
+}
+/* Refresca la app tras quitar un broker (el patrimonio cambia). */
+function brokersWiped() { MEMO = null; UI.histCache = null; render(true); }
+
 /* ---------- Actualización automática ---------- */
 async function autoRefreshNow() {
   if (!STANDALONE || S.demo || UI.refresh <= 0) return;
@@ -895,8 +941,12 @@ function renderRateBtn() {
   if (l) l.textContent = UI.refresh > 0 ? UI.refresh + 's' : 'Off';
   for (const o of $$('#rateMenu [data-action="rate-set"]')) o.setAttribute('aria-pressed', String(+o.dataset.s === UI.refresh));
 }
-function renderThemeMenu() {
-  for (const o of $$('#themeMenu [data-action="theme-set"]')) o.setAttribute('aria-pressed', String(o.dataset.v === UI.theme));
+function renderThemeBtn() {
+  const b = $('#themeBtn');
+  if (!b) return;
+  const dark = UI.theme === 'dark';
+  b.title = dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
+  b.setAttribute('aria-label', b.title);
 }
 
 /* ---------- Tema (automático / claro / oscuro) ---------- */
@@ -1031,7 +1081,7 @@ function render(anim) {
 function renderTop() {
   for (const b of $$('[role="tab"][data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === UI.tab));
   renderRateBtn();
-  renderThemeMenu();
+  renderThemeBtn();
   setSync();
 }
 function renderBanner() {
@@ -1839,25 +1889,33 @@ function updatePlanPreview(f) {
 }
 
 /* ---------- Ajustes */
-function modeLabel() {
-  if (S.demo) return 'Ejemplo en memoria';
-  if (S.mode === 'db') return 'Guardados en tu cuenta de Claude (privados)';
-  if (S.mode === 'local') return STANDALONE ? 'En este dispositivo (sin conexión con Claude)' : 'Solo en este navegador';
-  return 'Conectando';
+/* ¿Hay algún proveedor conectado? (Trading 212 o Trade Republic). */
+function brokerState() {
+  const t212 = B.proxy && (T.state === 'ok' || T.state === 'cached');
+  const tr = trLocal() && (TR.state === 'ok' || TR.state === 'cached');
+  return t212 || tr;
+}
+/* Refresca el punto verde/rojo de Ajustes (esa sección no se repinta sola). */
+function updateBrokerState() {
+  const ok = brokerState();
+  const lbl = $('#brokerStateLbl');
+  if (lbl) lbl.textContent = ok ? 'Conectado' : 'No conectado';
+  const dot = $('#brokerDot');
+  if (dot) {
+    dot.style.background = ok ? 'var(--gain)' : 'var(--loss)';
+    dot.style.boxShadow = '0 0 0 3px ' + (ok ? 'var(--gain-soft)' : 'var(--loss-soft)');
+  }
 }
 function brokerSection() {
   if (!STANDALONE) return '';
   const own = lsGet(LS_PROXY);
-  const status = B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') + (own && own.url ? ', guardado en este dispositivo.' : ', configurado en el repositorio.') : 'Sin servidor configurado.';
+  const status = B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') + (own && own.url ? ', guardado en este dispositivo.' : ', configurado en el repositorio.') : 'Sin servidor configurado. Pega la dirección y pulsa Conectar.';
   return '<section class="sh-sec"><h3>Servidor de brokers</h3>' +
-    '<p class="help" style="margin-bottom:12px">Este servidor (Cloudflare Workers) es quien habla con Trading 212. Las claves viven ahí como secretos; nunca en esta app. Los datos se guardan en este dispositivo.</p>' +
     '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor</label>' +
     '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://cartera-brokers.tu-cuenta.workers.dev"></div>' +
     '<p class="help" id="pxMsg">' + esc(status) + '</p>' +
-    '<div class="card-actions"><button class="btn primary sm" type="submit">Guardar y probar</button>' +
-    (B.proxy ? '<button type="button" class="btn ghost sm" data-action="proxy-clear">Quitar</button>' : '') +
-    (B.cfgProxy && own ? '<button type="button" class="btn ghost sm" data-action="proxy-default">Usar el del repositorio</button>' : '') +
-    '</div></form></section>';
+    '<button class="btn primary sm" id="proxyBtn" type="submit">' + (B.proxy ? 'Desconectar' : 'Conectar') + '</button>' +
+    '</form></section>';
 }
 /* Normaliza una posición de Trading 212 (campos reales de la API) a un activo
    virtual que el modelo puede sumar. Devuelve null si no hay datos aprovechables. */
@@ -1950,13 +2008,12 @@ function t212PositionsHTML() {
   return '<h3 style="margin-top:16px">Posiciones abiertas</h3><ul class="simple-list">' + rows.join('') + '</ul>';
 }
 function t212Section() {
-  return '<section class="sh-sec"><h3>Trading 212</h3>' +
-    '<p class="help" style="margin-bottom:12px">Solo lectura: consulta tu cuenta y posiciones. Los datos se guardan en este dispositivo y se reutilizan sin conexión.</p>' +
+  return '<section class="sh-sec" id="t212Sec"><h3>Trading 212</h3>' +
     '<div id="t212Body">' + renderT212Inner() + '</div></section>';
 }
 function renderT212Inner() {
   if (!STANDALONE) return '<p class="help">Disponible solo en la app instalable (web), no en la versión de escritorio de Claude.</p>';
-  if (!B.proxy) return '<p class="help">Primero configura el servidor de brokers (arriba).</p>';
+  if (!B.proxy) return '';
   if (T.state === 'busy') return '<div class="loading-box" style="padding:12px 0"><span class="spin"></span>Consultando Trading 212...</div>';
   if (T.state === 'err') return '<p class="help err">' + esc(T.err) + '</p><button class="btn ghost sm" data-action="t212-load">Reintentar</button>';
   if (T.state === 'ok' || T.state === 'cached') {
@@ -1969,14 +2026,13 @@ function renderT212Inner() {
 function trSection() {
   if (!STANDALONE) return '';
   return '<section class="sh-sec"><h3>Trade Republic</h3>' +
-    '<p class="help" style="margin-bottom:12px">Solo lectura, vía no oficial con código QR. Necesita un servidor local en tu PC (carpeta tr-server). Ver README.</p>' +
-    '<form class="form" data-form="trurl" novalidate><div class="fld"><label class="lbl" for="tr-url">Dirección del servidor local</label>' +
-    '<div class="inline"><input class="field" id="tr-url" name="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(TR.localUrl) + '" placeholder="http://localhost:8788"><button class="btn ghost" type="submit" style="height:46px">Guardar</button></div></div></form>' +
-    '<div id="trBody">' + renderTrInner() + '</div></section>';
+    '<form class="form" data-form="trurl" novalidate><input class="field" id="tr-url" name="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(TR.localUrl) + '" placeholder="http://localhost:8788">' +
+    '<button class="btn primary sm" id="trBtn" type="submit">' + (trLocal() ? 'Quitar' : 'Guardar') + '</button>' +
+    '</form><div id="trBody">' + renderTrInner() + '</div></section>';
 }
 function renderTrInner() {
   if (!STANDALONE) return '<p class="help">Disponible solo en la app instalable (web).</p>';
-  if (!trLocal()) return '<p class="help">Pon arriba la dirección del servidor local (ej. http://localhost:8788) y guárdala.</p>';
+  if (!trLocal()) return '';
   if (TR.state === 'busy') return '<div class="loading-box" style="padding:12px 0"><span class="spin"></span>Conectando con Trade Republic...</div>';
   if (TR.state === 'qr') return '<p class="help">Escanea este código QR con la app de Trade Republic para vincular.</p><div class="qr-box" id="qrBox"></div><button class="btn ghost sm" data-action="tr-check">Ya lo he escaneado</button>';
   if (TR.state === 'err') return '<p class="help err">' + esc(TR.err) + '</p><div class="card-actions"><button class="btn primary sm" data-action="tr-login">Vincular con QR</button><button class="btn ghost sm" data-action="tr-load">Reintentar lectura</button></div>';
@@ -2019,6 +2075,8 @@ function renderBrokers() {
   const b1 = $('#t212Body'); if (b1) b1.innerHTML = renderT212Inner();
   const b2 = $('#trBody'); if (b2) b2.innerHTML = renderTrInner();
   const qb = $('#qrBox'); if (qb && TR.qr) drawQR(qb, TR.qr);
+  const s = $('#t212Sec'); if (s) s.hidden = !B.proxy && !T.account; // sin servidor y sin datos: sección fuera
+  updateBrokerState();
   scheduleRender();
 }
 function drawQR(box, text) {
@@ -2027,21 +2085,15 @@ function drawQR(box, text) {
   box.innerHTML = '<img src="' + url + '" alt="Código QR de Trade Republic" width="220" height="220">';
 }
 function shSettings() {
-  const docs = Array.from(S.docs.values());
   return head('Ajustes') +
-    '<section class="sh-sec" style="margin-top:8px"><h3>Estado</h3><dl class="kv">' +
-      '<dt>Datos</dt><dd>' + modeLabel() + '</dd>' +
-      '<dt>Servidor de brokers</dt><dd>' + (STANDALONE ? (B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') : 'Sin servidor configurado') : 'No aplica en esta versión') + '</dd>' +
-      '<dt>Registros</dt><dd>' + docs.length + '</dd>' +
-    '</dl></section>' +
+    '<section class="sh-sec" style="margin-top:8px"><h3>Estado</h3>' +
+      '<p class="help" id="brokerState" style="display:flex;align-items:center;gap:8px;margin:0;font-size:14px">' +
+      '<span id="brokerDot" style="width:10px;height:10px;border-radius:50%;flex:none;background:' + (brokerState() ? 'var(--gain)' : 'var(--loss)') + ';box-shadow:0 0 0 3px ' + (brokerState() ? 'var(--gain-soft)' : 'var(--loss-soft)') + '"></span>' +
+      '<span id="brokerStateLbl">' + (brokerState() ? 'Conectado' : 'No conectado') + '</span>' +
+      '</p></section>' +
     brokerSection() +
     t212Section() +
     trSection() +
-    '<section class="sh-sec"><h3>Copia de seguridad</h3><p class="help" style="margin-bottom:10px">Copia este texto y guárdalo donde quieras. Para restaurar, pégalo en el cuadro de abajo.</p>' +
-      '<textarea class="field" id="exportTxt" readonly rows="4" aria-label="Copia de seguridad">' + esc(JSON.stringify({ app: 'cartera', v: 1, at: new Date().toISOString(), docs })) + '</textarea>' +
-      '<div class="card-actions" style="margin-top:10px"><button class="btn ghost sm" data-action="copy-export">Copiar</button></div></section>' +
-    '<section class="sh-sec"><h3>Restaurar</h3><form class="form" data-form="import" novalidate><textarea class="field" id="importTxt" name="txt" rows="3" placeholder="Pega aquí una copia de seguridad" aria-label="Copia para restaurar"></textarea><button class="btn ghost" type="submit">Restaurar copia</button></form></section>' +
-    '<section class="sh-sec"><h3>Diagnóstico</h3><textarea class="field" readonly rows="5" id="diagTxt" aria-label="Diagnóstico">' + esc(S.diag.join('\n')) + '</textarea></section>' +
     '<section class="sh-sec"><h3>Borrar</h3><button class="btn danger" data-action="wipe">Borrar todos mis datos</button><p class="help" style="margin-top:8px">Pide un segundo toque para confirmar y se puede deshacer justo después.</p></section>';
 }
 
@@ -2067,7 +2119,7 @@ ACT['add-plan'] = el => {
 ACT['add-tab'] = el => { AD.tab = el.dataset.k; if (SH.stack[0] && SH.stack[0].fn === shAdd) { SH.stack = [SH.stack[0]]; paintSheet(true); } else openAdd(AD.tab); };
 ACT['cash-mode'] = el => { AD.cashMode = el.dataset.m; paintSheet(true); };
 ACT['sheet-close'] = () => closeSheet();
-ACT['proxy-clear'] = () => { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; toast('Servidor de brokers quitado'); renderBrokers(); };
+ACT['proxy-clear'] = () => { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; discardT212(); brokersWiped(); toast('Servidor quitado y datos de Trading 212 borrados de este dispositivo'); renderBrokers(); };
 ACT['proxy-default'] = () => { try { localStorage.removeItem(LS_PROXY); } catch (e) { /* sin almacenamiento */ } B.proxy = B.cfgProxy; toast('Usando el servidor del repositorio'); renderBrokers(); };
 ACT['banner-ok'] = () => { lsSet('cartera.bannerOk', 1); renderBanner(); };
 ACT['sheet-back'] = () => sheetBack();
@@ -2078,12 +2130,13 @@ ACT['tr-load'] = () => trLoad();
 ACT['refresh-rate'] = () => {
   const m = $('#rateMenu');
   if (m) m.hidden = !m.hidden;
-  const t = $('#themeMenu'); if (t && !m.hidden) t.hidden = true;
 };
-ACT['theme-menu'] = () => {
-  const t = $('#themeMenu');
-  if (t) t.hidden = !t.hidden;
-  const m = $('#rateMenu'); if (m && !t.hidden) m.hidden = true;
+ACT['theme-toggle'] = () => {
+  UI.theme = UI.theme === 'dark' ? 'light' : 'dark';
+  lsSet(LS_THEME, { t: UI.theme });
+  applyTheme();
+  renderThemeBtn();
+  toast(UI.theme === 'dark' ? 'Tema oscuro' : 'Tema claro');
 };
 ACT['rate-set'] = el => {
   UI.refresh = +el.dataset.s;
@@ -2091,14 +2144,6 @@ ACT['rate-set'] = el => {
   const m = $('#rateMenu'); if (m) m.hidden = true;
   renderRateBtn();
   toast(UI.refresh > 0 ? 'Actualización automática: cada ' + UI.refresh + ' s' : 'Actualización automática apagada');
-};
-ACT['theme-set'] = el => {
-  UI.theme = el.dataset.v;
-  lsSet(LS_THEME, { t: UI.theme });
-  applyTheme();
-  const t = $('#themeMenu'); if (t) t.hidden = true;
-  renderThemeMenu();
-  toast(UI.theme === 'light' ? 'Tema claro' : UI.theme === 'dark' ? 'Tema oscuro' : 'Tema automático');
 };
 ACT.settings = () => openSheet({ fn: shSettings, title: 'Ajustes' });
 ACT['demo-on'] = () => { S.demo = true; S.demoDocs = new Map(demoDocs().map(d => [d.id, d])); runPlans(true); if (SH.open) closeSheet(); UI.tab = 'resumen'; render(true); };
@@ -2181,12 +2226,6 @@ ACT['rate-del'] = el => {
   const c = clone(c0); c.rates.splice(+el.dataset.i, 1); put(c);
   withUndo('Tipo eliminado', before);
 };
-ACT['copy-export'] = () => {
-  const ta = $('#exportTxt'); if (!ta) return;
-  try {
-    navigator.clipboard.writeText(ta.value).then(() => toast('Copia guardada en el portapapeles'), () => { ta.focus(); ta.select(); toast('Selecciona el texto y cópialo con Ctrl+C'); });
-  } catch (e) { ta.focus(); ta.select(); toast('Selecciona el texto y cópialo con Ctrl+C'); }
-};
 ACT.wipe = el => {
   if (el.dataset.armed !== '1') {
     el.dataset.armed = '1'; el.textContent = 'Toca otra vez para borrar todo';
@@ -2203,21 +2242,76 @@ ACT.wipe = el => {
 FORM.trurl = f => {
   const raw = f.elements.url.value.trim();
   const url = cleanProxyLocal(raw);
-  if (!url && raw) { toast('La dirección debe ser http://localhost:8788 o https://...'); return; }
+  const btn = f.querySelector('#trBtn');
+  if (btn) btn.disabled = true;
+  // Pulsó Quitar (la dirección guardada sigue en el campo).
+  if (trLocal() && url === trLocal()) {
+    TR.localUrl = '';
+    lsSet(LS_TR_URL, { url: '' });
+    discardTR(); brokersWiped();
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+    const inp = f.querySelector('#tr-url');
+    if (inp) inp.value = '';
+    toast('Servidor local de Trade Republic quitado y datos borrados de este dispositivo');
+    renderBrokers();
+    return;
+  }
+  if (!url && raw) { toast('La dirección debe ser http://localhost:8788 o https://...'); if (btn) btn.disabled = false; return; }
+  if (!url) {
+    TR.localUrl = '';
+    lsSet(LS_TR_URL, { url: '' });
+    discardTR(); brokersWiped();
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+    toast('Servidor local de Trade Republic quitado y datos borrados de este dispositivo');
+    renderBrokers();
+    return;
+  }
   TR.localUrl = url;
   lsSet(LS_TR_URL, { url });
-  toast(url ? 'Servidor local de Trade Republic guardado' : 'Servidor local de Trade Republic quitado');
+  if (btn) { btn.disabled = false; btn.textContent = 'Quitar'; }
+  toast('Servidor local de Trade Republic guardado');
   renderBrokers();
+};
+CHANGE.trurl = (f, t) => {
+  if (t.name !== 'url') return;
+  const b = $('#trBtn');
+  const v = cleanProxyLocal(t.value.trim());
+  if (!v) {
+    if (!trLocal()) { if (b) b.textContent = 'Guardar'; return; }
+    TR.localUrl = '';
+    lsSet(LS_TR_URL, { url: '' });
+    discardTR(); brokersWiped();
+    if (b) b.textContent = 'Guardar';
+    toast('Servidor local de Trade Republic quitado y datos borrados de este dispositivo');
+    renderBrokers();
+    return;
+  }
+  // El botón cambia según la dirección: Quitar si es la guardada, Guardar si es otra.
+  if (b) b.textContent = (trLocal() && v === trLocal()) ? 'Quitar' : 'Guardar';
 };
 FORM.proxy = async f => {
   const raw = f.elements.url.value.trim();
   const msg = f.querySelector('#pxMsg');
   const say = (t, err) => { if (msg) { msg.textContent = t; msg.classList.toggle('err', !!err); } };
-  if (!raw) { lsSet(LS_PROXY, { url: '' }); B.proxy = ''; renderBrokers(); toast('Servidor de brokers quitado'); return; }
+  const btn = f.querySelector('#proxyBtn');
+  if (btn) btn.disabled = true;
+  // Pulsó Desconectar (la dirección sigue guardada en el campo).
+  if (B.proxy && cleanProxy(raw) === B.proxy) {
+    lsSet(LS_PROXY, { url: '' }); B.proxy = ''; discardT212(); brokersWiped();
+    if (btn) { btn.disabled = false; btn.textContent = 'Conectar'; }
+    say('Sin servidor configurado. Pega la dirección y pulsa Conectar.');
+    toast('Servidor desconectado y datos de Trading 212 borrados de este dispositivo');
+    renderBrokers(); return;
+  }
+  if (!raw) {
+    lsSet(LS_PROXY, { url: '' }); B.proxy = ''; discardT212(); brokersWiped();
+    if (btn) { btn.disabled = false; btn.textContent = 'Conectar'; }
+    say('Sin servidor configurado. Pega la dirección y pulsa Conectar.');
+    toast('Servidor quitado y datos de Trading 212 borrados de este dispositivo');
+    renderBrokers(); return;
+  }
   const url = cleanProxy(raw);
-  if (!url) { say('La dirección tiene que empezar por https://', true); return; }
-  const btn = f.querySelector('button[type="submit"]');
-  if (btn) { btn.disabled = true; btn.textContent = 'Probando...'; }
+  if (!url) { say('La dirección tiene que empezar por https://', true); if (btn) btn.disabled = false; return; }
   const prev = B.proxy;
   B.proxy = url;
   try {
@@ -2225,14 +2319,34 @@ FORM.proxy = async f => {
     if (!j || j.servicio !== 'cartera-brokers') throw new Error('no es el servidor de brokers');
     lsSet(LS_PROXY, { url });
     diag('servidor de brokers conectado');
-    toast('Servidor de brokers conectado');
-    renderBrokers();
+    say('Conectado. Cargando tu cuenta de Trading 212...');
+    if (btn) { btn.disabled = false; btn.textContent = 'Desconectar'; }
+    await loadT212(true); // conecta y rellena el portfolio en un solo paso
+    say('Conectado a ' + url.replace(/^https?:\/\//, '') + '. Trading 212 al día.');
+    toast('Servidor conectado');
   } catch (e) {
     B.proxy = prev;
     diag('prueba del servidor falló: ' + (e && (e.code || '')) + ' ' + (e && e.message));
     say(brokerErr(e), true);
-    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = 'Guardar y probar'; }
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = prev ? 'Desconectar' : 'Conectar'; }
   }
+};
+CHANGE.proxy = (f, t) => {
+  if (t.name !== 'url') return;
+  const b = $('#proxyBtn');
+  // Vaciar la dirección desconecta (y borra los datos del broker de este dispositivo).
+  if (!t.value.trim()) {
+    if (!B.proxy) { if (b) b.textContent = 'Conectar'; return; }
+    lsSet(LS_PROXY, { url: '' }); B.proxy = ''; discardT212(); brokersWiped();
+    const m = f.querySelector('#pxMsg');
+    if (m) { m.textContent = 'Sin servidor configurado. Pega la dirección y pulsa Conectar.'; m.classList.remove('err'); }
+    if (b) b.textContent = 'Conectar';
+    toast('Servidor quitado y datos de Trading 212 borrados de este dispositivo');
+    renderBrokers();
+    return;
+  }
+  // El botón cambia según la dirección: Desconectar si es la guardada, Conectar si es otra.
+  if (b) b.textContent = (B.proxy && cleanProxy(t.value.trim()) === B.proxy) ? 'Desconectar' : 'Conectar';
 };
 FORM.search = f => {
   const q = f.elements.q.value.trim(); AD.q = q;
@@ -2388,16 +2502,6 @@ FORM.plan = f => {
 };
 INPUT.plan = f => updatePlanPreview(f);
 CHANGE.plan = f => updatePlanPreview(f);
-FORM.import = f => {
-  let j;
-  try { j = JSON.parse(f.elements.txt.value); } catch (e) { toast('Ese texto no es una copia válida.'); return; }
-  const docs = ((j && j.docs) || []).filter(d => d && typeof d === 'object' && typeof d.id === 'string' && /^[A-Za-z0-9_\-.~:@+]{1,200}$/.test(d.id) && ['asset', 'cash', 'plan', 'settings'].includes(d.kind));
-  if (!docs.length) { toast('No encontré datos en esa copia.'); return; }
-  const before = docs.map(d => snap(d.id));
-  for (const d of docs) put(clone(d), true);
-  runPlans(true); scheduleRender(); closeSheet();
-  withUndo('Restaurados ' + docs.length + ' registros', before);
-};
 
 /* =========================================================
    Arranque
@@ -2406,7 +2510,6 @@ function bindGlobal() {
   document.addEventListener('click', e => {
     if (!e.target.closest('.rate-wrap')) {
       const rm = $('#rateMenu'); if (rm && !rm.hidden) rm.hidden = true;
-      const tm = $('#themeMenu'); if (tm && !tm.hidden) tm.hidden = true;
     }
     const el = e.target.closest('[data-action]'); if (!el) return;
     const fn = ACT[el.dataset.action]; if (!fn) return;
@@ -2434,10 +2537,9 @@ function bindGlobal() {
   });
   $('#scrim').addEventListener('click', () => closeSheet());
   document.addEventListener('keydown', e => {
-    const rm = $('#rateMenu'), tm = $('#themeMenu');
+    const rm = $('#rateMenu');
     if (e.key === 'Escape') {
       if (rm && !rm.hidden) { rm.hidden = true; e.preventDefault(); return; }
-      if (tm && !tm.hidden) { tm.hidden = true; e.preventDefault(); return; }
       if (SH.open) { e.preventDefault(); sheetBack(); return; }
     }
     const t = e.target;
@@ -2465,6 +2567,7 @@ function boot() {
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* sin persistencia */ }
   }
   t212CacheLoad(); trCacheLoad(); trHistCacheLoad();
+  if (STANDALONE && !trLocal()) discardTR(); // sin URL local, los datos de Trade Republic se quedan fuera
   render();
   initStore(); initBrokers();
   setInterval(() => {

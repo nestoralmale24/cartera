@@ -143,12 +143,17 @@ async function testWebBrokers() {
   ok('lee config.json', calls.some(u => u.endsWith('config.json')));
   d.querySelector('[data-action="settings"]').click(); await sleep(60);
   ok('Ajustes muestra el servidor', d.querySelector('#px-url').value === 'https://brokers.test');
+  ok('Ajustes ya no tiene copia/restaurar', !d.querySelector('#exportTxt') && !d.querySelector('#importTxt'));
+  ok('Ajustes ya no tiene diagnóstico', !d.querySelector('#diagTxt'));
+  ok('el estado global dice No conectado aún', d.querySelector('#brokerState').textContent.trim() === 'No conectado');
   // Trading 212
   d.querySelector('[data-action="t212-load"]').click(); await sleep(120);
   const tbody = d.querySelector('#t212Body');
   ok('muestra la cuenta de Trading 212', /Disponible/.test(tbody.textContent) && /6.584,56/.test(tbody.textContent), tbody.textContent);
   ok('muestra posiciones de Trading 212', /Apple Inc/.test(tbody.textContent));
   ok('guarda Trading 212 en local', JSON.parse(w.localStorage.getItem('cartera.t212.v1')).account.cash.availableToTrade === 1000);
+  ok('el estado global pasa a Conectado con Trading 212', d.querySelector('#brokerState').textContent.trim() === 'Conectado');
+  ok('el punto de estado es verde', d.querySelector('#brokerDot').style.background === 'var(--gain)');
   // El dashboard debe incluir el valor del broker.
   const M = w.__cartera.model();
   ok('el patrimonio incluye Trading 212', M.pos.some(p => p.broker && p.a.source === 't212' && p.value > 0), JSON.stringify(M.pos.map(p => p.a.name)));
@@ -165,22 +170,20 @@ async function testWebBrokers() {
   d.querySelector('#rateMenu [data-s="30"]').click(); await sleep(40);
   ok('el menú elige la frecuencia', d.querySelector('#refreshRateLbl').textContent === '30s' && d.querySelector('#rateMenu').hidden === true);
   ok('la frecuencia elegida se guarda', JSON.parse(w.localStorage.getItem('cartera.autoRefresh.v1')).s === 30);
-  // Tema en la cabecera (junto al botón de frecuencia).
+  // Tema en la cabecera: un solo clic alterna claro/oscuro (sin menú).
+  ok('ya no hay menú de tema', !d.querySelector('#themeMenu'));
   d.querySelector('#themeBtn').click(); await sleep(30);
-  ok('se abre el menú de tema', d.querySelector('#themeMenu').hidden === false);
-  const tchip = dv => d.querySelector('#themeMenu [data-action="theme-set"][data-v="' + dv + '"]');
-  tchip('light').click(); await sleep(30);
-  ok('tema claro forzado', d.documentElement.getAttribute('data-theme') === 'light');
-  tchip('dark').click(); await sleep(30);
-  ok('tema oscuro forzado', d.documentElement.getAttribute('data-theme') === 'dark');
-  tchip('auto').click(); await sleep(30);
-  ok('tema automático sin atributo', d.documentElement.getAttribute('data-theme') === null);
+  ok('un clic pone tema oscuro', d.documentElement.getAttribute('data-theme') === 'dark');
+  d.querySelector('#themeBtn').click(); await sleep(30);
+  ok('otro clic vuelve a tema claro', d.documentElement.getAttribute('data-theme') === 'light');
   // Trade Republic (servidor local)
   const trUrl = d.querySelector('#tr-url'); trUrl.value = 'http://localhost:8788';
   fire(w, trUrl.closest('form'), 'submit'); await sleep(60);
+  ok('el botón de Trade Republic dice Quitar al guardar la dirección', d.querySelector('#trBtn').textContent === 'Quitar');
   d.querySelector('[data-action="tr-login"]').click(); await sleep(120);
   ok('muestra el QR de Trade Republic', !!d.querySelector('#qrBox img'));
-  d.querySelector('[data-action="tr-check"]').click(); await sleep(120);
+  await sleep(2600); // el sondeo automático confirma la vinculación y carga el portfolio solo
+  ok('el portfolio sustituyó al QR sin pulsar nada', !d.querySelector('#qrBox'), d.querySelector('#trBody').textContent.slice(0, 120));
   const trCache = JSON.parse(w.localStorage.getItem('cartera.tr.v1'));
   ok('conecta Trade Republic y guarda posiciones', trCache.positions.length === 2 && trCache.positions[0].name === 'ETF Global', JSON.stringify(trCache.positions.map(p => p.name)));
   ok('guarda los planes de ahorro', trCache.plans.length === 2);
@@ -227,6 +230,33 @@ async function testWebBrokers() {
     ok('la ficha de Trade Republic dibuja la mini gráfica', !!d.querySelector('#miniChart svg'), (d.querySelector('#miniChart').textContent || '').slice(0, 60));
     d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
   }
+  // Desconectar con el botón: los datos de Trading 212 se borran del dispositivo.
+  d.querySelector('[data-action="settings"]').click(); await sleep(80);
+  ok('el botón dice Desconectar al estar conectado', d.querySelector('#proxyBtn').textContent === 'Desconectar');
+  fire(w, d.querySelector('form[data-form="proxy"]'), 'submit'); await sleep(80);
+  ok('al desconectar se borran los datos de Trading 212', d.querySelector('#t212Body').textContent.trim() === '' && d.querySelector('#t212Sec').hidden === true, d.querySelector('#t212Body').textContent.slice(0, 120));
+  ok('se borra la caché guardada de Trading 212', w.localStorage.getItem('cartera.t212.v1') === null);
+  ok('Trading 212 sale del patrimonio', !w.__cartera.model().pos.some(p => p.a.source === 't212'), JSON.stringify(w.__cartera.model().pos.map(p => p.a.name)));
+  ok('el botón vuelve a decir Conectar', d.querySelector('#proxyBtn').textContent === 'Conectar');
+  ok('el estado global sigue Conectado por Trade Republic', d.querySelector('#brokerState').textContent.trim() === 'Conectado');
+  // Reconectar en un solo clic: pon la dirección y envía.
+  const pxEl = d.querySelector('#px-url');
+  pxEl.value = 'https://brokers.test';
+  fire(w, d.querySelector('form[data-form="proxy"]'), 'submit'); await sleep(150);
+  ok('al reconectar vuelve Trading 212', /Conectado/.test(d.querySelector('#t212Body').textContent) && /Apple Inc/.test(d.querySelector('#t212Body').textContent), d.querySelector('#t212Body').textContent.slice(0, 160));
+  ok('el botón vuelve a decir Desconectar', d.querySelector('#proxyBtn').textContent === 'Desconectar');
+  // Y con Trade Republic: el botón Quitar borra sus datos y su caché.
+  const trUrlForm = d.querySelector('form[data-form="trurl"]');
+  fire(w, trUrlForm, 'submit'); await sleep(80);
+  ok('al quitar el servidor local se borran los datos de Trade Republic', d.querySelector('#trBody').textContent.trim() === '' && !/ETF Global/.test(d.querySelector('#trBody').textContent), d.querySelector('#trBody').textContent.slice(0, 120));
+  ok('Trade Republic sale del patrimonio', !w.__cartera.model().pos.some(p => p.a.source === 'tr'), JSON.stringify(w.__cartera.model().pos.map(p => p.a.name)));
+  ok('se borra la caché de Trade Republic', w.localStorage.getItem('cartera.tr.v1') === null && w.localStorage.getItem('cartera.tr.hist.v1') === null);
+  ok('el botón de Trade Republic vuelve a decir Guardar', d.querySelector('#trBtn').textContent === 'Guardar');
+  ok('el campo de dirección de Trade Republic queda vacío', d.querySelector('#tr-url').value === '');
+  ok('el estado global sigue Conectado por Trading 212', d.querySelector('#brokerState').textContent.trim() === 'Conectado');
+  fire(w, d.querySelector('form[data-form="proxy"]'), 'submit'); await sleep(60); // desconectar Trading 212 también
+  ok('el estado global dice No conectado sin proveedores', d.querySelector('#brokerState').textContent.trim() === 'No conectado');
+  ok('el punto de estado es rojo', d.querySelector('#brokerDot').style.background === 'var(--loss)');
   ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
   w.close();
 }

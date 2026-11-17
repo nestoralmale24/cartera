@@ -9,10 +9,9 @@ Panel personal de patrimonio: acciones, ETFs, fondos, cripto y liquidez remunera
 - Liquidez con TAE (con cambios de tipo por fecha), intereses generados día a día y estimación del próximo mes.
 - **Brokers en solo lectura** (versión web): consulta tu cuenta, posiciones, planes de ahorro y liquidez de Trading 212 y Trade Republic. Los datos se guardan en el dispositivo.
 - **Actualización automática**: refresca los brokers cada 5 s por defecto; menú arriba a la derecha para elegir 5s / 15s / 30s / 60s / apagado.
-- **Tema a elección**: botón sol/luna en la cabecera (junto a la frecuencia) → Automático, Claro u Oscuro.
+- **Tema con un clic**: botón sol/luna en la cabecera; un solo toque alterna entre claro y oscuro.
 - **Logos por ISIN**: las posiciones muestran su logotipo oficial buscado por ISIN (base de datos Wikidata, con caché local); si no hay resultado, la insignia con letras.
 - **Inversiones por tipo**: apartados Todo · Acciones · ETFs · Fondos · Cripto · Otros; Trade Republic se clasifica con su tipo real y Trading 212 se deduce del nombre.
-- Copia de seguridad y restauración en Ajustes.
 - Funciona en PC, iPhone y iPad, con tema claro y oscuro.
 
 Sin dependencias en tiempo de ejecución: HTML, CSS y JavaScript en un solo fichero.
@@ -34,8 +33,6 @@ Sin dependencias en tiempo de ejecución: HTML, CSS y JavaScript en un solo fich
 | Requisitos | Sesión iniciada en Claude | Cualquier Safari o Chrome reciente |
 
 La versión web no puede hablar directamente con Trading 212 ni Trade Republic: el navegador bloquea esas peticiones entre dominios (CORS). Por eso usa un servidor pequeño en tu cuenta de Cloudflare (`worker/`) que hace de puente. Ver [Conectar brokers](#conectar-brokers-opcional).
-
-Para pasar datos de una versión a otra: Ajustes → Copia de seguridad → Copiar, y en la otra versión Ajustes → Restaurar.
 
 ## Estructura
 
@@ -92,7 +89,7 @@ La versión web puede leer tu cuenta de Trading 212 y Trade Republic en **solo l
 - **Trading 212** → un mini servidor propio en **Cloudflare Workers** (gratuito, ~5 minutos). El navegador no puede hablar con Trading 212 directamente (CORS) y el Worker es quien guarda tus claves.
 - **Trade Republic** → un **servidor local** en tu PC (Bun + código QR). Su flujo de entrada usa WAF y WebSocket y no puede hacerse desde el navegador.
 
-Los datos se guardan en el dispositivo y se reutilizan sin conexión.
+Los datos se guardan en el dispositivo y se reutilizan sin conexión. Si quitas la dirección del servidor (botón Desconectar/Quitar), esos datos se borran del dispositivo.
 
 ### 1. Trading 212 (API oficial)
 
