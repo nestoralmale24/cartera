@@ -73,6 +73,72 @@ async function t212(url, env, cors) {
   }
 }
 
+/* =========================================================
+   Histórico de precios (Yahoo Finance, solo lectura, sin claves)
+   Trading 212 no publica histórico; la app lo pide aquí por ISIN para
+   dibujar las gráficas. Yahoo no admite CORS desde el navegador, por eso
+   pasa por el Worker. Devuelve { symbol, currency, t:[días], c:[cierre] }.
+   ========================================================= */
+const YF = 'https://query1.finance.yahoo.com';
+const YF_HEADERS = { 'User-Agent': 'Mozilla/5.0 (compatible; nido)', 'Accept': 'application/json' };
+const RANGES = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', 'max'];
+// Intradía (t en segundos): 1m en el día, 5m en la semana, 1h en 1 y 3 meses. El resto, diario/semanal (t en días).
+const INTRADAY = { '1d': '1m', '5d': '5m', '1mo': '60m', '3mo': '60m' };
+const DAILY = { '5y': '1wk', 'max': '1mo' };
+/* Resuelve un ISIN a símbolos de Yahoo (hasta 3 candidatos con tipo válido). */
+async function yfSymbols(isin) {
+  const s = await fetch(YF + '/v1/finance/search?q=' + isin + '&quotesCount=8&newsCount=0', { headers: YF_HEADERS });
+  const sj = await s.json();
+  return ((sj && sj.quotes) || []).filter(x => x && x.symbol && /^(EQUITY|ETF|MUTUALFUND|CRYPTOCURRENCY)$/.test(x.quoteType))
+    .map(x => ({ symbol: String(x.symbol).toUpperCase(), name: String(x.longname || x.shortname || '') })).slice(0, 3);
+}
+/* Velas de un símbolo: { symbol, currency, unit, prev, t, c, v } o null. Intradía: t en segundos; diario: t en días. */
+async function yfChart(symbol, range) {
+  const intra = !!INTRADAY[range];
+  const r = await fetch(YF + '/v8/finance/chart/' + encodeURIComponent(symbol) + '?range=' + range + '&interval=' + (INTRADAY[range] || DAILY[range] || '1d'), { headers: YF_HEADERS });
+  const j = await r.json();
+  const res = j && j.chart && j.chart.result && j.chart.result[0];
+  const q = res && res.indicators && res.indicators.quote && res.indicators.quote[0];
+  const ts = res && res.timestamp, cl = q && q.close, vo = q && q.volume;
+  if (!Array.isArray(ts) || !Array.isArray(cl)) return null;
+  const t = [], c = [], v = [];
+  for (let i = 0; i < ts.length; i++) {
+    if (typeof cl[i] !== 'number' || !(cl[i] > 0)) continue;
+    const d = intra ? ts[i] : Math.floor(ts[i] / 86400);
+    const vol = vo && typeof vo[i] === 'number' ? vo[i] : 0;
+    if (t.length && t[t.length - 1] === d) { c[c.length - 1] = cl[i]; v[v.length - 1] += vol; continue; }
+    t.push(d); c.push(cl[i]); v.push(vol);
+  }
+  if (t.length < 2) return null;
+  const meta = res.meta || {};
+  const prev = meta.chartPreviousClose > 0 ? meta.chartPreviousClose : (meta.previousClose > 0 ? meta.previousClose : null);
+  return { symbol, currency: meta.currency || '', unit: intra ? 's' : 'd', prev, t, c, v: v.some(x => x > 0) ? v : null };
+}
+async function marketChart(url, cors) {
+  const range = url.searchParams.get('range') || '1y';
+  if (RANGES.indexOf(range) < 0) return reply({ error: 'Rango no válido' }, 400, cors);
+  let symbol = (url.searchParams.get('symbol') || '').toUpperCase();
+  const isin = (url.searchParams.get('isin') || '').toUpperCase();
+  try {
+    let list;
+    if (symbol) {
+      if (!/^[A-Z0-9.^=-]{1,16}$/.test(symbol)) return reply({ error: 'Símbolo no válido' }, 400, cors);
+      list = [{ symbol }];
+    } else {
+      if (!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(isin)) return reply({ error: 'Falta un ISIN válido' }, 400, cors);
+      list = await yfSymbols(isin);
+      if (!list.length) return reply({ error: 'Sin cotización para ese ISIN', code: 'market_not_found' }, 404, cors);
+    }
+    for (const q of list) {
+      const out = await yfChart(q.symbol, range);
+      if (out) { if (q.name) out.name = q.name; return reply(out, 200, cors); }
+    }
+    return reply({ error: 'Sin histórico para ' + list[0].symbol, code: 'market_not_found' }, 404, cors);
+  } catch (e) {
+    return reply({ error: 'El servicio de precios no responde', code: 'market_unreachable' }, 502, cors);
+  }
+}
+
 /* Clave de acceso (secreto ACCESS_KEY). Si no está definida, no se exige. */
 function accessDenied(request, env) {
   const key = env && env.ACCESS_KEY;
@@ -107,6 +173,13 @@ export default {
       if (request.method !== 'GET') return reply({ error: 'Solo se admite GET' }, 405, cors);
       if (accessDenied(request, env)) return reply({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401, cors);
       return t212(url, env, cors);
+    }
+
+    // Histórico de precios (mismo control de acceso que Trading 212)
+    if (url.pathname === '/market/chart') {
+      if (request.method !== 'GET') return reply({ error: 'Solo se admite GET' }, 405, cors);
+      if (accessDenied(request, env)) return reply({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401, cors);
+      return marketChart(url, cors);
     }
 
     return reply({ error: 'Ruta no permitida' }, 404, cors);
