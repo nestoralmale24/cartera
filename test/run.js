@@ -103,27 +103,35 @@ async function testWebBrokers() {
   const t212Account = { id: 12345, currency: 'EUR', totalValue: 6584.56,
     cash: { availableToTrade: 1000, inPies: 0, reservedForOrders: 0 },
     investments: { currentValue: 5584.56, totalCost: 5234.56, unrealizedProfitLoss: 350, realizedProfitLoss: 12.5 } };
-  const t212Positions = [{ quantity: 5.5, averagePricePaid: 180, currentPrice: 210,
+  const t212Positions = [{ quantity: 5.5, averagePricePaid: 180, currentPrice: 210, createdAt: new Date(Date.now() - 30 * 864e5).toISOString(),
     instrument: { currency: 'USD', isin: 'US0378331005', name: 'Apple Inc.', ticker: 'AAPL_US_EQ' },
     walletImpact: { currency: 'EUR', currentValue: 1155, fxImpact: 3.2, totalCost: 990, unrealizedProfitLoss: 165 } }];
+  let statusCalls = 0;
   const fetchMock = async (url, init) => {
     url = String(url); calls.push(url);
     if (url.endsWith('config.json')) return resp({ brokerProxy: 'https://brokers.test' });
     if (url === 'https://brokers.test/') return resp({ ok: true, servicio: 'nido-brokers' });
     if (url === 'https://brokers.test/t212/account') return (init && init.headers && init.headers['X-Access'] === 'topsecret') ? resp(t212Account) : resp({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401);
     if (url === 'https://brokers.test/t212/positions') return (init && init.headers && init.headers['X-Access'] === 'topsecret') ? resp(t212Positions) : resp({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401);
+    if (url.startsWith('https://brokers.test/market/chart')) {
+      if (/range=(1d|5d)/.test(url)) { const now = Math.floor(Date.now() / 1000), t = [], c = []; for (let i = 40; i >= 0; i--) { t.push(now - i * 300); c.push(200 + (40 - i) * 0.3); } return resp({ symbol: 'AAPL', currency: 'USD', unit: 's', prev: 199, t, c }); }
+      const day = Math.floor(Date.now() / 864e5), t = [], c = [];
+      for (let i = 60; i >= 0; i--) { t.push(day - i); c.push(100 + (60 - i)); }
+      return resp({ symbol: 'AAPL', currency: 'USD', t, c });
+    }
     // Trade Republic usa un servidor local aparte.
     if (url === 'http://localhost:8788/login') return resp({ ok: true, status: 'qr' });
     if (url === 'http://localhost:8788/qr') return resp({ ok: true, status: 'pending', qrPayload: 'https://tr.test/qr' });
-    if (url === 'http://localhost:8788/status') return resp({ ok: true, status: 'connected' });
+    if (url === 'http://localhost:8788/status') return resp({ ok: true, status: (statusCalls++ === 0) ? 'loading' : 'connected' });
     if (url.startsWith('http://localhost:8788/history')) return resp({ ok: true, isin: 'IE00B4L5Y983', range: '1y', exchange: 'LSX', candles: [[Date.now() - 2 * 864e5, 90], [Date.now() - 864e5, 93], [Date.now(), 95]] });
     if (url === 'http://localhost:8788/portfolio') return resp({
       ok: true,
       positions: [
-        { name: 'ETF Global', isin: 'IE00B4L5Y983', netSize: 10, averageBuyIn: 92.5, currency: 'EUR', invested: 925, currentPrice: 95, value: 950, ppl: 25, instrumentType: 'etf' },
+        { name: 'ETF Global', issuer: 'Vanguard', fullName: 'Vanguard FTSE All-World UCITS ETF', isin: 'IE00B4L5Y983', netSize: 10, averageBuyIn: 92.5, currency: 'EUR', invested: 925, currentPrice: 95, value: 950, ppl: 25, instrumentType: 'etf' },
         { name: 'Bitcoin', isin: 'XF000BTC0017', netSize: 0.01, averageBuyIn: 40000, currency: 'EUR', invested: 400, currentPrice: null, value: null, ppl: null, instrumentType: 'crypto' }
       ],
       cash: [{ amount: 100.5, currency: 'EUR' }],
+      interest: [{ date: '2026-10-01', amount: 1.25 }, { date: '2026-11-01', amount: 0.75 }],
       plans: [
         { id: 'p1', instrumentId: 'IE00B4L5Y983', amount: 100, interval: 'monthly', instrumentType: 'fund', paused: false, nextExecutionDate: '2026-12-02' },
         { id: 'p2', instrumentId: 'XF000BTC0017', amount: 50, interval: 'twoPerMonth', instrumentType: 'crypto', paused: false, nextExecutionDate: '2026-12-02' }
@@ -131,8 +139,10 @@ async function testWebBrokers() {
     });
     // Precio de criptos: CoinGecko. El histórico (/market_chart) va aparte.
     if (url.includes('/market_chart')) return resp({ prices: [[Date.now() - 2 * 864e5, 40000], [Date.now() - 864e5, 45000], [Date.now(), 50000]] });
+    if (url.startsWith('https://api.coingecko.com/api/v3/coins/bitcoin?')) return resp({ image: { small: 'https://img.test/btc.png' } });
     if (url.startsWith('https://api.coingecko.com/')) return resp({ bitcoin: { eur: 50000 } });
     // Logos por ISIN: Wikidata (SPARQL).
+    if (url.startsWith('https://query.wikidata.org/sparql') && decodeURIComponent(url).includes('IE00B4L5Y983')) return resp({ results: { bindings: [] } }); // el fondo no está en Wikidata
     if (url.startsWith('https://query.wikidata.org/sparql')) {
       return resp({ results: { bindings: [{ logo: { type: 'uri', value: 'http://commons.wikimedia.org/wiki/Special:FilePath/Apple%20logo%20black.svg' } }] } });
     }
@@ -156,6 +166,26 @@ async function testWebBrokers() {
   d.querySelector('[data-action="t212-load"]').click(); await sleep(120);
   const tbody = d.querySelector('#t212Body');
   ok('muestra la cuenta de Trading 212', /Disponible/.test(tbody.textContent) && /6.584,56/.test(tbody.textContent), tbody.textContent);
+  await sleep(150);
+  const t2h = JSON.parse(w.localStorage.getItem('cartera.t212.hist.v1') || '{}');
+  ok('guarda el histórico de precios de Trading 212', !!(t2h.by && t2h.by['US0378331005'] && t2h.by['US0378331005'].c.length === 61), JSON.stringify(t2h).slice(0, 120));
+  const H212 = w.__nido.history(365);
+  ok('la gráfica de patrimonio se calcula con ese histórico', !!H212 && H212.n >= 30 && H212.val[H212.n - 1] > 1100 && H212.val[0] < H212.val[H212.n - 1], H212 && JSON.stringify([H212.n, H212.val[0], H212.val[H212.n - 1]]));
+  const H1d = await w.__nido.history1d();
+  ok('el 1D del resumen suma las velas intradía de las posiciones', !!H1d && Array.isArray(H1d.ts) ? H1d.n >= 30 && H1d.val[H1d.n - 1] > 1100 : false, H1d && JSON.stringify([H1d.n, H1d.val[H1d.n - 1]]));
+  const r1 = d.querySelector('[data-action="range"][data-r="1"]');
+  ok('el resumen ofrece el rango 1D', !!r1 && r1.textContent === '1D');
+  if (r1) { r1.click(); await sleep(250); ok('el 1D del resumen dibuja la gráfica con horas', !!d.querySelector('#mainChart svg') && /\d{2}:\d{2}/.test(d.querySelector('#mainChart').textContent), d.querySelector('#mainChart').textContent.slice(0, 80)); d.querySelector('[data-action="range"][data-r="91"]').click(); await sleep(60); }
+  ok('con una sola cuenta no hay selector de cuenta', !d.querySelector('[data-action="src-set"]'));
+  const eyeBtn = d.querySelector('[data-action="key-eye"]');
+  ok('la clave de acceso tiene un ojo y empieza oculta', !!eyeBtn && d.querySelector('#px-key').type === 'password');
+  if (eyeBtn) {
+    eyeBtn.click(); await sleep(30);
+    ok('el ojo muestra la clave', d.querySelector('#px-key').type === 'text' && d.querySelector('#px-key').value === 'topsecret' && eyeBtn.getAttribute('aria-pressed') === 'true');
+    d.querySelector('[data-action="key-eye"]').click(); await sleep(30);
+    ok('otro clic la vuelve a ocultar', d.querySelector('#px-key').type === 'password');
+  }
+  ok('el logo de un fondo se deduce del emisor', /domain=vanguard\.com/.test(w.__nido.issuerLogoUrl('Vanguard S&P 500 UCITS ETF')) && /domain=ishares\.com/.test(w.__nido.issuerLogoUrl('iShares Core MSCI EM IMI UCITS ETF')) && w.__nido.issuerLogoUrl('Fondo cualquiera') === '');
   ok('guarda la clave de acceso en el dispositivo', JSON.parse(w.localStorage.getItem('cartera.broker.v1')).key === 'topsecret');
   ok('muestra posiciones de Trading 212', /Apple Inc/.test(tbody.textContent));
   ok('guarda Trading 212 en local', JSON.parse(w.localStorage.getItem('cartera.t212.v1')).account.cash.availableToTrade === 1000);
@@ -200,7 +230,9 @@ async function testWebBrokers() {
   ok('el botón de Trade Republic dice Quitar al guardar la dirección', d.querySelector('#trBtn').textContent === 'Quitar');
   d.querySelector('[data-action="tr-login"]').click(); await sleep(120);
   ok('muestra el QR de Trade Republic', !!d.querySelector('#qrBox img'));
-  await sleep(2600); // el sondeo automático confirma la vinculación y carga el portfolio solo
+  await sleep(2300); // primer sondeo: el QR ya está aprobado y el servidor lee la cartera
+  ok('mientras carga la cartera se ve un spinner pequeño', !!d.querySelector('#trBody .spin') && /Cargando tu cartera/.test(d.querySelector('#trBody').textContent), d.querySelector('#trBody').textContent.slice(0, 100));
+  await sleep(2400); // segundo sondeo: conectado, carga el portfolio solo
   ok('el portfolio sustituyó al QR sin pulsar nada', !d.querySelector('#qrBox'), d.querySelector('#trBody').textContent.slice(0, 120));
   const trCache = JSON.parse(w.localStorage.getItem('cartera.tr.v1'));
   ok('conecta Trade Republic y guarda posiciones', trCache.positions.length === 2 && trCache.positions[0].name === 'ETF Global', JSON.stringify(trCache.positions.map(p => p.name)));
@@ -208,6 +240,20 @@ async function testWebBrokers() {
   const MT = w.__nido.model();
   ok('el patrimonio incluye Trade Republic con P/L', MT.pos.some(p => p.broker && p.a.source === 'tr' && p.pnl === 25), JSON.stringify(MT.pos.filter(p => p.a.source === 'tr')));
   ok('Bitcoin tiene P/L (CoinGecko para cripto)', MT.pos.some(p => p.broker && p.a.source === 'tr' && p.a.isin === 'XF000BTC0017' && p.pnl === 100), JSON.stringify(MT.pos.filter(p => p.a.source === 'tr' && p.a.isin === 'XF000BTC0017')));
+  ok('el cambio de hoy de Trade Republic ya no es cero', MT.hasDay && MT.invDay > 0, String(MT.invDay));
+  ok('los intereses cobrados por Trade Republic suman', Math.abs(MT.interest - 2) < 1e-9 && MT.monthInt > 0, JSON.stringify([MT.interest, MT.monthInt]));
+  for (const r of [7, 0, -1]) { const HH = w.__nido.history(r); ok('la gráfica admite el rango ' + (r === 0 ? 'YTD' : r === -1 ? 'Todo' : r + ' días'), !!HH && HH.n >= 2, String(HH && HH.n)); }
+  const srcBtn = d.querySelector('[data-action="src-set"][data-s="tr"]');
+  ok('con dos cuentas aparece el selector de cuenta', !!srcBtn && !!d.querySelector('[data-action="src-set"][data-s="t212"]'));
+  if (srcBtn) {
+    srcBtn.click(); await sleep(80);
+    const Mtr = w.__nido.model('tr');
+    const trSum = MT.pos.filter(p => p.broker && p.a.source === 'tr').reduce((a, p) => a + p.value, 0) + MT.trCash;
+    ok('el resumen solo con Trade Republic', Math.abs(Mtr.net - trSum) < 0.01 && /Patrimonio en Trade Republic/.test(d.querySelector('.hero-top').textContent), JSON.stringify([Mtr.net, trSum]));
+    ok('la gráfica del resumen sigue ese filtro', !!w.__nido.history(91, 'tr') && w.__nido.history(91, 'tr').val[w.__nido.history(91, 'tr').n - 1] < w.__nido.history(91, 'all').val[w.__nido.history(91, 'all').n - 1]);
+    d.querySelector('[data-action="src-set"][data-s="all"]').click(); await sleep(80);
+    ok('Todo vuelve a sumar las dos cuentas', Math.abs(w.__nido.model().net - MT.net) < 0.01);
+  }
   ok('la liquidez de Trade Republic también suma', MT.trCash === 100.5 && MT.cashTotal === 1100.5, String(MT.cashTotal));
   ok('muestra los planes en la sección con su instrumento', /ETF Global/.test(d.querySelector('#trBody').textContent) && /Bitcoin/.test(d.querySelector('#trBody').textContent), d.querySelector('#trBody').textContent);
   // Histórico: velas de Trade Republic (y criptos por CoinGecko) para las gráficas.
@@ -240,12 +286,44 @@ async function testWebBrokers() {
   // Logos por ISIN (Wikidata).
   const logo = d.querySelector('#view img.logo[src*="wikimedia"]');
   ok('las posiciones muestran logotipo', !!logo, d.querySelector('#view').textContent.slice(0, 300));
+  await sleep(300);
+  const fundLogo = d.querySelector('#view .row[data-id="tr_IE00B4L5Y983"] img.logo');
+  ok('un fondo sin logo en Wikidata usa el de su emisor (tabla de ISIN)', !!fundLogo && /domain=ishares\.com/.test(fundLogo.getAttribute('src') || ''), fundLogo && fundLogo.outerHTML);
+  const btcLogo = d.querySelector('#view .row[data-id="tr_XF000BTC0017"] img.logo');
+  ok('Bitcoin usa su icono de criptomoneda', !!btcLogo && /cryptocurrency-icons.*\/btc\.png/.test(btcLogo.getAttribute('src') || ''), btcLogo && btcLogo.outerHTML);
+  const resTab = d.querySelector('[role="tab"][data-tab="resumen"]'); if (resTab) { resTab.click(); await sleep(80); }
+  const topRows = Array.from(d.querySelectorAll('#view .grid2 .panel:nth-child(2) .lb'));
+  ok('Mayores posiciones muestra badge con logo o iniciales en cada fila', topRows.length > 0 && topRows.every(b => !!b.querySelector('.badge')), String(topRows.length));
+  const invTab = d.querySelector('[role="tab"][data-tab="inversiones"]'); if (invTab) { invTab.click(); await sleep(80); }
   // Gráficas con el histórico del broker: sparkline en la lista y mini gráfica en la ficha.
   const trRow = d.querySelector('.row[data-action="open-broker"][data-id^="tr_"]');
   ok('la fila de Trade Republic muestra su sparkline', trRow && !!trRow.querySelector('.spark svg'), trRow && trRow.outerHTML.slice(0, 300));
   if (trRow) {
     trRow.click(); await sleep(80);
-    ok('la ficha de Trade Republic dibuja la mini gráfica', !!d.querySelector('#miniChart svg'), (d.querySelector('#miniChart').textContent || '').slice(0, 60));
+    ok('la ficha de Trade Republic dibuja la gráfica de mercado', !!d.querySelector('#mktChart svg'), (d.querySelector('#mktChart').textContent || '').slice(0, 60));
+    ok('la ficha de la posición muestra el logotipo (no un cuadro blanco)', !!d.querySelector('#sheetBody img.logo[src]'), d.querySelector('#sheetBody .asset-head') && d.querySelector('#sheetBody .asset-head').innerHTML.slice(0, 200));
+    ok('la ficha ofrece 1D, 1S, 1M, 3M, 6M, 1A y Máx', Array.from(d.querySelectorAll('#mktTabs button')).map(b => b.textContent).join() === '1D,1S,1M,3M,6M,1A,Máx');
+    d.querySelector('#mktTabs [data-r="3m"]').click(); await sleep(40);
+    ok('cambiar de periodo redibuja y marca la pestaña', d.querySelector('#mktTabs [data-r="3m"]').getAttribute('aria-selected') === 'true' && !!d.querySelector('#mktChart svg'));
+    ok('el cambio del periodo se muestra en la ficha', /%/.test(d.querySelector('#mktSub').textContent), d.querySelector('#mktSub').textContent);
+    d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
+  }
+  // Cripto: la gráfica sale de CoinGecko (Yahoo no tiene el ISIN XF...)
+  const btcRow = d.querySelector('.row[data-action="open-broker"][data-id="tr_XF000BTC0017"]');
+  if (btcRow) {
+    btcRow.click(); await sleep(120);
+    ok('la ficha de Bitcoin dibuja la gráfica con CoinGecko', !!d.querySelector('#mktChart svg'), (d.querySelector('#mktChart').textContent || '').slice(0, 80));
+    d.querySelector('#mktTabs [data-r="1d"]').click(); await sleep(80);
+    ok('Bitcoin también tiene 1D', !!d.querySelector('#mktChart svg'), (d.querySelector('#mktChart').textContent || '').slice(0, 80));
+    d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
+  }
+  // Ficha de Trading 212: periodos diarios con el histórico guardado y 1D/1S con velas intradía del servidor.
+  const t2Row = d.querySelector('.row[data-action="open-broker"][data-id^="t212_"]');
+  if (t2Row) {
+    t2Row.click(); await sleep(120);
+    ok('la ficha de Trading 212 dibuja la gráfica de mercado', !!d.querySelector('#mktChart svg'), (d.querySelector('#mktChart').textContent || '').slice(0, 60));
+    d.querySelector('#mktTabs [data-r="1d"]').click(); await sleep(80);
+    ok('1D usa velas intradía y muestra la hora', !!d.querySelector('#mktChart svg') && /\d{2}:\d{2}/.test(d.querySelector('#mktChart').textContent), d.querySelector('#mktChart').textContent);
     d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
   }
   // Desconectar con el botón: los datos de Trading 212 se borran del dispositivo.
@@ -322,6 +400,23 @@ async function testWorker() {
     ok('ya no sirve Trade Republic (va al servidor local)', r.status === 404);
     r = await worker.fetch(new Request('https://w.test/t212/account', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
     ok('responde a la comprobación previa', r.status === 204);
+    // Histórico de precios: ISIN -> símbolo -> velas diarias compactas.
+    const yh = [];
+    globalThis.fetch = async (url) => {
+      yh.push(String(url));
+      if (String(url).includes('/v1/finance/search')) return new Response(JSON.stringify({ quotes: [{ symbol: 'amzn', quoteType: 'EQUITY' }] }), { status: 200 });
+      return new Response(JSON.stringify({ chart: { result: [{ meta: { currency: 'USD' }, timestamp: [86400 * 100, 86400 * 100 + 3600, 86400 * 101, 86400 * 102], indicators: { quote: [{ close: [10, 11, null, 12] }] } }] } }), { status: 200 });
+    };
+    r = await worker.fetch(new Request('https://w.test/market/chart?isin=US0231351067&range=1y', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
+    const mc = JSON.parse(await r.text());
+    ok('histórico: resuelve el ISIN y devuelve días y cierres', r.status === 200 && mc.symbol === 'AMZN' && mc.t.join() === '100,102' && mc.c.join() === '11,12' && mc.currency === 'USD', JSON.stringify(mc));
+    ok('histórico: consulta a Yahoo con el símbolo', yh.some(u => u.includes('/v8/finance/chart/AMZN?range=1y&interval=1d')));
+    r = await worker.fetch(new Request('https://w.test/market/chart?isin=../../x', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
+    ok('histórico: rechaza un ISIN inválido', r.status === 400);
+    r = await worker.fetch(new Request('https://w.test/market/chart?isin=US0231351067&range=99y', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
+    ok('histórico: rechaza un rango no permitido', r.status === 400);
+    r = await worker.fetch(new Request('https://w.test/market/chart?isin=US0231351067', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN, ACCESS_KEY: 'secreto' });
+    ok('histórico: exige la clave de acceso', r.status === 401);
   } finally { globalThis.fetch = realFetch; }
 }
 

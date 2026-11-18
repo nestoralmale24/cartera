@@ -26,6 +26,7 @@ const NP = new Intl.NumberFormat('es-ES', Object.assign({ minimumFractionDigits:
 const NC = new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 });
 const DF = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const DFs = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const MYF = new Intl.DateTimeFormat('es-ES', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 const MINUS = '−';
 const okNum = v => v != null && isFinite(v);
 function eur(v) { return okNum(v) ? NF.format(v).replace('-', MINUS) : '-'; }
@@ -357,6 +358,8 @@ function cashCalc(c, endE) {
   return { bal: b, principal: p, interest: b - p, start, ser, pser, apy: apyNow };
 }
 let MEMO = null;
+const TR_APY = 2; // interés anual (%) que se supone al saldo de Trade Republic para estimar el próximo mes
+function trInterestTotal() { return S.demo ? 0 : (TR.interest || []).reduce((s, x) => s + (+x.amount || 0), 0); }
 /* Convierte un activo virtual de broker en una entrada "pos" equivalente a las
    que produce calcPos(), para que el modelo y las vistas lo traten igual. */
 function brokerPos(a) {
@@ -364,15 +367,47 @@ function brokerPos(a) {
   const value = a.vValue != null ? a.vValue : (okNum(a.price) ? qty * a.price : 0);
   const cost = a.vCost != null ? a.vCost : value;
   const pnl = a.vPpl != null ? a.vPpl : value - cost;
-  return { a, qty, cost, avg: qty > 0 ? cost / qty : 0, price: a.price, value, pnl, pnlPct: cost > 0 ? pnl / cost : 0, realized: 0, day: 0, pendN: 0, estN: 0, broker: true, dayPct: null };
+  // Cambio de hoy: último cierre frente al anterior del histórico de mercado (el broker no lo da).
+  let day = 0, dayPct = null;
+  const h = a.hist;
+  if (h && h.c && h.c.length >= 2 && qty > 0) {
+    const l = h.c[h.c.length - 1], pv = h.c[h.c.length - 2];
+    if (l > 0 && pv > 0) { dayPct = l / pv - 1; day = value - value / (1 + dayPct); }
+  }
+  return { a, qty, cost, avg: qty > 0 ? cost / qty : 0, price: a.price, value, pnl, pnlPct: cost > 0 ? pnl / cost : 0, realized: 0, day, pendN: 0, estN: 0, broker: true, dayPct };
 }
-function model() {
-  if (MEMO) return MEMO;
-  const assets = all('asset'), accounts = all('cash'), plans = all('plan');
+/* Cuentas que tienen datos (para el selector del resumen) y la que está activa. */
+function srcList() {
+  const l = [];
+  if (!S.demo) {
+    if ((TR.positions && TR.positions.length) || (TR.cash || []).some(c => +c.amount > 0)) l.push('tr');
+    if ((T.positions && T.positions.length) || (T.account && T.account.cash)) l.push('t212');
+  }
+  if (all('asset').length || all('cash').length) l.push('manual');
+  return l;
+}
+const SRC_LABEL = { all: 'Todo', tr: 'Trade Republic', t212: 'Trading 212', manual: 'Manual' };
+function srcEff() { const l = srcList(); return l.length > 1 && l.includes(UI.src) ? UI.src : 'all'; }
+let MEMO_SRC = null;
+/* model(): toda la cartera. model('tr' | 't212' | 'manual'): solo esa cuenta (memoizado sobre el modelo completo). */
+function model(src) {
+  if (src && src !== 'all') {
+    const base = model();
+    if (MEMO_SRC && MEMO_SRC.base === base && MEMO_SRC.src === src) return MEMO_SRC.m;
+    const m = buildModel(src);
+    MEMO_SRC = { base, src, m };
+    return m;
+  }
+  if (!MEMO) MEMO = buildModel('all');
+  return MEMO;
+}
+function buildModel(src) {
+  const inS = k => src === 'all' || src === k;
+  const assets = inS('manual') ? all('asset') : [], accounts = inS('manual') ? all('cash') : [], plans = all('plan');
   const pos = assets.map(a => Object.assign({ a }, calcPos(a), { dayPct: (a.price > 0 && a.prev > 0) ? a.price / a.prev - 1 : null }));
   // Posiciones de brokers (solo lectura) mezcladas en el mismo listado.
-  for (const a of t212Assets()) pos.push(brokerPos(a));
-  for (const a of trAssets()) pos.push(brokerPos(a));
+  if (inS('t212')) for (const a of t212Assets()) pos.push(brokerPos(a));
+  if (inS('tr')) for (const a of trAssets()) pos.push(brokerPos(a));
   let invValue = 0, invCost = 0, invDay = 0, realized = 0, pendN = 0, estN = 0;
   const missing = new Set();
   for (const p of pos) {
@@ -390,36 +425,44 @@ function model() {
   // Liquidez de los brokers (efectivo de Trading 212 y Trade Republic).
   let t212Cash = 0, trCash = 0;
   if (!S.demo) {
-    const tc = T.account && T.account.cash;
+    const tc = inS('t212') && T.account && T.account.cash;
     if (tc) t212Cash = (+tc.availableToTrade || 0) + (+tc.inPies || 0) + (+tc.reservedForOrders || 0);
-    trCash = (TR.cash || []).reduce((s, c) => s + (+c.amount || 0), 0);
+    if (inS('tr')) trCash = (TR.cash || []).reduce((s, c) => s + (+c.amount || 0), 0);
   }
   cashTotal += t212Cash + trCash;
+  // Intereses del saldo de Trade Republic: los cobrados (de su historial) y una estimación del próximo mes.
+  const trInt = inS('tr') ? trInterestTotal() : 0;
+  interest += trInt;
+  if (trCash > 0) { monthInt += trCash * (Math.pow(1 + TR_APY / 100, 30 / 365) - 1); yearInt += trCash * TR_APY / 100; }
   const alloc = TYPE_ORDER.map(k => ({ k: TYPES[k].k, l: TYPES[k].p, v: pos.filter(p => typeOf(p.a) === k && !p.broker).reduce((s, p) => s + p.value, 0) }));
   alloc.push({ k: '--k-t212', l: 'Trading 212', v: pos.filter(p => p.broker && p.a.source === 't212').reduce((s, p) => s + p.value, 0) });
   alloc.push({ k: '--k-tr', l: 'Trade Republic', v: pos.filter(p => p.broker && p.a.source === 'tr').reduce((s, p) => s + p.value, 0) });
   alloc.push({ k: '--k-cash', l: 'Liquidez', v: cashTotal });
   const invPnl = invValue - invCost;
-  const hasDay = pos.some(p => p.qty > 0 && p.a.prev > 0);
-  MEMO = {
+  const hasDay = pos.some(p => p.qty > 0 && (p.broker ? p.dayPct != null : p.a.prev > 0));
+  return {
     assets, accounts, plans, pos, cash, invValue, invCost, invPnl, invPct: invCost > 0 ? invPnl / invCost : 0,
     invDay, invDayPct: (invValue - invDay) > 0 ? invDay / (invValue - invDay) : 0, hasDay, realized, pendN, estN,
     missingFx: Array.from(missing), cashTotal, interest, monthInt, yearInt, net: invValue + cashTotal,
     t212Cash, trCash, brokerCash: t212Cash + trCash,
     totalGain: invPnl + realized + interest, alloc, any: !!(assets.length || accounts.length || plans.length || pos.length)
   };
-  return MEMO;
 }
-function history(R) {
+function history(R, src) {
+  src = src || srcEff();
+  const inS = k => src === 'all' || src === k;
   const end = todayEd();
-  const assets = all('asset'), accounts = all('cash');
+  const assets = inS('manual') ? all('asset') : [], accounts = inS('manual') ? all('cash') : [];
   let first = end;
   for (const a of assets) for (const t of a.txs || []) if (validDate(t.date)) first = Math.min(first, toEd(t.date));
   const cc = accounts.map(c => cashCalc(c));
   for (const r of cc) if (r.ser) first = Math.min(first, r.start);
-  const brok = trAssets(), brok212 = t212Assets();
+  const brok = inS('tr') ? trAssets() : [], brok212 = inS('t212') ? t212Assets() : [];
   for (const a of brok) if (a.hist && a.hist.t && a.hist.t.length) first = Math.min(first, a.hist.t[0]);
-  const start = Math.max(end - R, first);
+  for (const a of brok212) if (a.since != null && a.vCost > 0) first = Math.min(first, a.since);
+  // R: días hacia atrás; 0 = lo que va de año; -1 = todo el histórico
+  const span = R === -1 ? Infinity : (R === 0 ? end - toEd(new Date(end * DAY).getUTCFullYear() + '-01-01') : R);
+  const start = Math.max(end - span, first);
   const n = end - start + 1;
   if (n < 2) return null;
   const val = new Float64Array(n), con = new Float64Array(n);
@@ -458,15 +501,26 @@ function history(R) {
       con[i] += cost;
     }
   }
-  // Trading 212 no publica histórico de precios en su API: se valora a coste.
+  // Trading 212 no publica histórico de precios: se estima con la fecha de apertura de cada posición
+  // y el cierre diario de mercado (Yahoo, vía el servidor de brokers). Sin precios, se valora a coste.
   for (const a of brok212) {
-    const cost = a.vCost || 0;
+    const cost = a.vCost || 0, qty = a.vQty || 0;
     if (!(cost > 0)) continue;
-    for (let i = 0; i < n; i++) { val[i] += cost; con[i] += cost; }
+    const h = a.hist && a.hist.t && a.hist.t.length ? a.hist : null;
+    for (let i = 0; i < n; i++) {
+      const d = start + i;
+      if (a.since != null && d < a.since) continue; // antes de abrir la posición no aporta
+      let v = cost;
+      if (h && qty > 0) {
+        if (i === n - 1 && a.vValue > 0) v = a.vValue;
+        else { const j = lastLE(h.t, d); v = j >= 0 ? qty * h.c[j] : cost; }
+      }
+      val[i] += v; con[i] += cost;
+    }
   }
   // Efectivo de los brokers: sin histórico, se suma plano a Patrimonio y Aportado.
   const tc = (T.account && T.account.cash) || {};
-  const brokCash = (+tc.availableToTrade || 0) + (+tc.inPies || 0) + (+tc.reservedForOrders || 0) + (TR.cash || []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const brokCash = (inS('t212') ? (+tc.availableToTrade || 0) + (+tc.inPies || 0) + (+tc.reservedForOrders || 0) : 0) + (inS('tr') ? (TR.cash || []).reduce((s, c) => s + (Number(c.amount) || 0), 0) : 0);
   if (brokCash > 0) for (let i = 0; i < n; i++) { val[i] += brokCash; con[i] += brokCash; }
   return { start, n, val, con };
 }
@@ -683,6 +737,7 @@ async function loadT212(silent) {
     const [account, positions] = await Promise.all([brokerFetch('/t212/account'), brokerFetch('/t212/positions')]);
     T.account = account; T.positions = positions; T.at = Date.now(); T.state = 'ok'; T.err = '';
     t212CacheSave();
+    t212SyncHistories(); // precios diarios para las gráficas (en segundo plano, con su propia caché)
     if (!silent) toast('Trading 212 actualizado y guardado en este dispositivo');
   } catch (e) {
     if (e && e.status === 429) { T.nextRetry = Date.now() + 15000; diag('trading212: límite de peticiones, espero un poco'); }
@@ -693,9 +748,9 @@ async function loadT212(silent) {
 }
 
 /* ---------- Trade Republic (servidor local) ---------- */
-const TR = { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, at: null, poll: null, localUrl: '' };
+const TR = { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, interest: [], at: null, poll: null, localUrl: '' };
 const LS_TR_URL = 'cartera.tr.url.v1';
-const AR = { t212: false, tr: false, trh: false };
+const AR = { t212: false, tr: false, trh: false, t2h: false };
 function trLocal() { return cleanProxyLocal(TR.localUrl); }
 function cleanProxyLocal(u) {
   u = String(u || '').trim().replace(/\/+$/, '');
@@ -705,11 +760,11 @@ function cleanProxyLocal(u) {
 }
 function trCacheLoad() {
   const c = lsGet(LS_TR);
-  if (c && c.positions) { TR.positions = c.positions; TR.cash = c.cash || null; TR.plans = c.plans || null; TR.at = c.at || null; TR.state = 'cached'; }
+  if (c && c.positions) { TR.positions = c.positions; TR.cash = c.cash || null; TR.plans = c.plans || null; TR.interest = Array.isArray(c.interest) ? c.interest : []; TR.at = c.at || null; TR.state = 'cached'; }
   const u = lsGet(LS_TR_URL);
   if (u && typeof u.url === 'string') TR.localUrl = u.url;
 }
-function trCacheSave() { lsSet(LS_TR, { positions: TR.positions, cash: TR.cash, plans: TR.plans, at: Date.now() }); }
+function trCacheSave() { lsSet(LS_TR, { positions: TR.positions, cash: TR.cash, plans: TR.plans, interest: TR.interest, at: Date.now() }); }
 async function trFetch(path, opts) {
   const base = trLocal();
   if (!base) { const er = new Error('Configura la dirección del servidor local de Trade Republic en Ajustes.'); er.code = 'tr_no_url'; throw er; }
@@ -803,7 +858,7 @@ async function trFetchPortfolio(silent) {
   try {
     const j = await trFetch('/portfolio');
     await trFillCryptoPrices(j.positions);
-    TR.positions = j.positions || []; TR.cash = j.cash || null; TR.plans = j.plans || null; TR.at = Date.now(); TR.state = 'ok'; TR.err = '';
+    TR.positions = j.positions || []; TR.cash = j.cash || null; TR.plans = j.plans || null; TR.interest = Array.isArray(j.interest) ? j.interest : (TR.interest || []); TR.at = Date.now(); TR.state = 'ok'; TR.err = '';
     trCacheSave();
     trSyncHistories(); // velas para las gráficas (en segundo plano, con su propia caché)
     if (!silent) toast('Trade Republic actualizado y guardado en este dispositivo');
@@ -818,6 +873,7 @@ async function trCheck() {
   try {
     const s = await trFetch('/status');
     if (s && s.status === 'connected') { trStopPoll(); TR.state = 'ok'; await trFetchPortfolio(true); }
+    else if (s && s.status === 'loading') { TR.state = 'loading'; }
     else if (s && s.status === 'pending') { /* sigue esperando el QR */ TR.state = 'qr'; }
     else { TR.err = s && s.error ? s.error : 'Aún no confirmado.'; TR.state = 'err'; }
   } catch (e) { TR.err = trErr(e); TR.state = 'err'; }
@@ -830,9 +886,13 @@ function trStopPoll() {
   if (TR.poll) { clearInterval(TR.poll); TR.poll = null; }
 }
 async function trPollOnce() {
-  if (TR.state !== 'qr') { trStopPoll(); return; }
+  if (TR.state !== 'qr' && TR.state !== 'loading') { trStopPoll(); return; }
   let s = null;
   try { s = await trFetch('/status'); } catch (e) { return; } // ocupado: el siguiente intento decidirá
+  if (s && s.status === 'loading') { // QR aprobado: el servidor está leyendo la cartera
+    if (TR.state !== 'loading') { TR.state = 'loading'; TR.qr = null; renderBrokers(); }
+    return;
+  }
   if (!s || (s.status !== 'connected' && s.status !== 'pending')) {
     trStopPoll();
     TR.state = 'err';
@@ -862,13 +922,14 @@ async function trLoadSilent() {
 /* ---------- Histórico de precios de Trade Republic (alimenta las gráficas) ---------- */
 const LS_TRH = 'cartera.tr.hist.v1';
 const TRH = { by: {} }; // { [isin]: { at, miss?, t:[días], c:[cierre] } }
-const TRH_TTL = 86400000;      // el histórico se re-busca una vez al día
-const TRH_MISS_TTL = 3600000;  // si TR no dio velas, se reintenta en 1 hora
+const TRH_TTL = 900000;        // el histórico se re-busca cada 15 min (el cambio de hoy sale de él)
+const TRH_MISS_TTL = 300000;   // si no hubo velas, se reintenta en 5 min (y el fallo no se guarda en el dispositivo)
+const noMiss = by => { const o = {}; for (const k of Object.keys(by)) if (by[k] && !by[k].miss) o[k] = by[k]; return o; };
 function trHistCacheLoad() {
   const c = lsGet(LS_TRH);
   if (c && c.by && typeof c.by === 'object') TRH.by = c.by;
 }
-function trHistCacheSave() { lsSet(LS_TRH, { by: TRH.by }); }
+function trHistCacheSave() { lsSet(LS_TRH, { by: noMiss(TRH.by) }); }
 /* Histórico de criptos: Trade Republic no lo sirve por WebSocket; CoinGecko sí. */
 async function trCryptoHist(sym) {
   const id = CG_MAP[sym] || String(sym).toLowerCase();
@@ -908,22 +969,64 @@ async function trSyncHistories() {
         if (Array.isArray(h)) h = { t: h.map(x => Math.floor(Number(x[0]) / DAY)), c: h.map(x => Number(x[1])) };
         if (!h.t || h.t.length < 2) h = null;
       }
-      if (h) { TRH.by[isin] = { at: Date.now(), t: h.t, c: h.c }; changed = true; }
+      let yahoo = false;
+      if (!h && a.type !== 'crypto') { // Trade Republic no dio velas: precios de mercado (Yahoo) por ISIN
+        try {
+          const j = await trFetch('/market/chart?range=1y&isin=' + encodeURIComponent(isin));
+          if (j && Array.isArray(j.t) && Array.isArray(j.c) && j.t.length >= 2 && j.t.length === j.c.length) { h = { t: j.t.map(Number), c: j.c.map(Number) }; yahoo = true; }
+        } catch (e) { /* sin servidor al día o sin cotización */ }
+      }
+      if (h) { TRH.by[isin] = { at: Date.now(), t: h.t, c: h.c, y: yahoo || undefined }; changed = true; }
       else TRH.by[isin] = { at: Date.now(), miss: true };
     }
   } finally { AR.trh = false; }
   if (changed) { trHistCacheSave(); MEMO = null; UI.histCache = null; render(true); }
+  else { UI.histCache = null; const mb = $('#mainChart'); if (mb) drawMain(mb); }
+}
+
+/* ---------- Histórico de precios de Trading 212 (vía el servidor de brokers, por ISIN) ---------- */
+const LS_T2H = 'cartera.t212.hist.v1';
+const T2H = { by: {} }; // { [isin]: { at, miss?, t:[días], c:[cierre] } }
+function t212HistCacheLoad() {
+  const c = lsGet(LS_T2H);
+  if (c && c.by && typeof c.by === 'object') T2H.by = c.by;
+}
+function t212HistCacheSave() { lsSet(LS_T2H, { by: noMiss(T2H.by) }); }
+async function t212SyncHistories() {
+  if (AR.t2h || !brokersReady() || S.demo) return;
+  const list = t212Assets().filter(a => a.isin && a.vQty > 0);
+  const stale = list.filter(a => !(T2H.by[a.isin] && T2H.by[a.isin].at && Date.now() - T2H.by[a.isin].at < (T2H.by[a.isin].miss ? TRH_MISS_TTL : TRH_TTL)));
+  if (!stale.length) return;
+  AR.t2h = true;
+  let changed = false;
+  try {
+    for (const a of stale) {
+      let h = null;
+      try {
+        const j = await brokerFetch('/market/chart?range=1y&isin=' + encodeURIComponent(a.isin));
+        if (j && Array.isArray(j.t) && Array.isArray(j.c) && j.t.length >= 2 && j.t.length === j.c.length) h = { t: j.t.map(Number), c: j.c.map(Number) };
+      } catch (e) {
+        if (e && (e.code === 'access_denied' || e.code === 'broker_unreachable')) break; // no insistas con el resto
+      }
+      if (h) { T2H.by[a.isin] = { at: Date.now(), t: h.t, c: h.c }; changed = true; }
+      else T2H.by[a.isin] = { at: Date.now(), miss: true };
+    }
+  } finally { AR.t2h = false; }
+  t212HistCacheSave();
+  if (changed) { MEMO = null; UI.histCache = null; render(true); }
+  else { UI.histCache = null; const mb = $('#mainChart'); if (mb) drawMain(mb); }
 }
 
 /* ---------- Regla "sin URL, sin datos" ---------- */
 /* Quitar la dirección de un broker borra también su caché en este dispositivo. */
 function discardT212() {
   Object.assign(T, { state: 'idle', err: '', account: null, positions: null, at: null, nextRetry: 0 });
-  try { localStorage.removeItem(LS_T212); } catch (e) { /* sin almacenamiento */ }
+  T2H.by = {};
+  try { localStorage.removeItem(LS_T212); localStorage.removeItem(LS_T2H); } catch (e) { /* sin almacenamiento */ }
 }
 function discardTR() {
   trStopPoll();
-  Object.assign(TR, { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, at: null, poll: null });
+  Object.assign(TR, { state: 'idle', err: '', qr: null, positions: null, cash: null, plans: null, interest: [], at: null, poll: null });
   TRH.by = {};
   try { localStorage.removeItem(LS_TR); localStorage.removeItem(LS_TRH); } catch (e) { /* sin almacenamiento */ }
 }
@@ -979,15 +1082,50 @@ function applyTheme() {
 /* ---------- Logos por ISIN (Wikidata: P946 = ISIN, P154 = logo oficial) ---------- */
 function logoCacheLoad() {
   const c = lsGet(LS_LOGOS);
-  if (c && c.list && typeof c.list === 'object') LOGOS.map = c.list;
+  if (c && c.list && typeof c.list === 'object') { for (const k of Object.keys(c.list)) if (c.list[k]) LOGOS.map[k] = c.list[k]; }
+}
+function logosSave() { const o = {}; for (const k of Object.keys(LOGOS.map)) if (LOGOS.map[k]) o[k] = LOGOS.map[k]; lsSet(LS_LOGOS, { list: o }); }
+/* Criptos: icono de la moneda por símbolo (BTC -> btc.png). Es una imagen estática: sin API ni límites. */
+async function cryptoLogoUrl(isin) {
+  const sym = trCryptoSymbol(isin); if (!sym) return '';
+  return 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/' + sym.toLowerCase() + '.png';
+}
+/* Fondos conocidos por ISIN (los más habituales) y pistas del nombre tal como lo escribe Trade Republic. */
+const FUND_ISIN = {
+  IE00B4L5Y983: 'ishares.com', IE00B5BMR087: 'ishares.com', IE00BKM4GZ66: 'ishares.com', IE00B4ND3602: 'ishares.com',
+  IE00BK5BQT80: 'vanguard.com', IE00B3RBWM25: 'vanguard.com', IE00BFMXXD54: 'vanguard.com', IE00B3XXRP09: 'vanguard.com',
+  IE00BJ0KDQ92: 'dws.com', LU1681043599: 'amundietf.com', IE00B6YX5C33: 'ssga.com', IE00B3YCGJ38: 'invesco.com'
+};
+const FUND_HINT = [[/^core (msci|s&p|euro|dax|ftse)/i, 'ishares.com'], [/ftse all-world/i, 'vanguard.com']];
+function fundHintLogo(isin, name) {
+  let dom = FUND_ISIN[isin];
+  if (!dom) for (const h of FUND_HINT) if (h[0].test(String(name || ''))) { dom = h[1]; break; }
+  return dom ? 'https://www.google.com/s2/favicons?domain=' + dom + '&sz=128' : '';
+}
+/* Nombres con los que se puede reconocer al emisor de un fondo: el del broker (Trading 212 lo incluye),
+   el emisor que da Trade Republic y el que devolvió el servidor de precios. */
+function issuerNames(isin) {
+  const out = [];
+  for (const a of t212Assets().concat(trAssets())) if (a.isin === isin) { out.push(a.name); if (a.issuer) out.push(a.issuer); }
+  if (ISS.by[isin]) out.push(ISS.by[isin]);
+  return out;
 }
 async function logoLookup(isin) {
   const key = String(isin || '').trim().toUpperCase();
   if (!key) return;
   if (LOGOS.map[key] != null || LOGOS.pending.has(key)) return;
+  if (LOGOS.cool && LOGOS.cool[key] > Date.now()) return;
   LOGOS.pending.add(key);
+  if (/^XF/i.test(key)) {
+    const cu = await cryptoLogoUrl(key);
+    LOGOS.pending.delete(key);
+    if (cu === null) { (LOGOS.cool = LOGOS.cool || {})[key] = Date.now() + 60000; return; }
+    LOGOS.map[key] = cu; logosSave(); scheduleRender();
+    return;
+  }
   let url = '';
   try {
+    if (LOGOS.noWd.has(key)) throw new Error('sin Wikidata');
     const q = 'SELECT ?logo WHERE { ?item wdt:P946 "' + key + '" . ?item wdt:P154 ?logo . } LIMIT 6';
     const u = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(q);
     const r = await fetch(u, { headers: { 'User-Agent': 'nido/1.0 (local)' } });
@@ -1000,15 +1138,25 @@ async function logoLookup(isin) {
       if (fname) url = 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(fname) + '?width=128';
     }
   } catch (e) { url = ''; }
+  if (!url) {
+    LOGOS.noWd.add(key);
+    url = fundHintLogo(key, (issuerNames(key)[0] || ''));
+    if (!url) for (const n of issuerNames(key)) { url = issuerLogoUrl(n); if (url) break; }
+    if (!url && ISS.by[key] == null) { LOGOS.wait.add(key); LOGOS.pending.delete(key); issuerSync(); return; } // aún sin nombre del emisor: se reintenta cuando llegue
+  }
+  LOGOS.pending.delete(key);
   LOGOS.map[key] = url;
-  lsSet(LS_LOGOS, { list: LOGOS.map });
+  logosSave();
   scheduleRender();
 }
 function applyLogos() {
   for (const img of $$('img.logo[data-isin]')) {
     const isin = String(img.dataset.isin || '').trim().toUpperCase();
     if (!isin) { img.remove(); continue; }
-    if (LOGOS.map[isin] != null) { if (LOGOS.map[isin]) img.src = LOGOS.map[isin]; else img.remove(); }
+    if (LOGOS.map[isin] != null) {
+      if (LOGOS.map[isin]) { img.onerror = () => img.remove(); if (img.getAttribute('src') !== LOGOS.map[isin]) img.src = LOGOS.map[isin]; }
+      else img.remove();
+    }
     else logoLookup(isin);
   }
 }
@@ -1057,15 +1205,50 @@ function demoDocs() {
    Estado de interfaz
    ========================================================= */
 const TABS = ['resumen', 'inversiones', 'liquidez', 'planes'];
-const UI = { tab: 'resumen', range: 182, filter: 'all', sort: 'value', histCache: null, refresh: 5, theme: 'auto', privacy: false };
+const UI = { tab: 'resumen', src: 'all', range: 182, filter: 'all', sort: 'value', histCache: null, refresh: 5, theme: 'auto', privacy: false };
 const AUTO_OPTS = [5, 15, 30, 60, 0];
 const LS_AUTOREFRESH = 'cartera.autoRefresh.v1';
 const LS_THEME = 'cartera.theme.v1';
 const LS_PRIVACY = 'cartera.privacy.v1';
 const LS_LOGOS = 'cartera.logos.v1';
-const LOGOS = { map: {}, pending: new Set() };
+const LOGOS = { map: {}, pending: new Set(), wait: new Set(), noWd: new Set() };
+/* Fondos y ETF: Wikidata casi nunca tiene su ISIN, así que se usa el logo del emisor (iShares, Vanguard...)
+   deducido del nombre del instrumento que devuelve el servidor de precios. */
+const LS_ISS = 'cartera.issuer.v1';
+const ISS = { by: {}, tried: {}, busy: false };
+const ISSUERS = [
+  [/ishares|blackrock/i, 'ishares.com'], [/vanguard/i, 'vanguard.com'], [/xtrackers|\bdws\b/i, 'dws.com'],
+  [/invesco/i, 'invesco.com'], [/spdr|state street/i, 'ssga.com'], [/amundi|lyxor/i, 'amundietf.com'],
+  [/wisdomtree/i, 'wisdomtree.eu'], [/vaneck/i, 'vaneck.com'], [/\bubs\b/i, 'ubs.com'], [/hsbc/i, 'hsbc.com'],
+  [/jpmorgan|jp morgan/i, 'jpmorgan.com'], [/legal & general|\bl&g\b/i, 'lgim.com'], [/bnp/i, 'bnpparibas.com'],
+  [/franklin/i, 'franklintempleton.com'], [/global x/i, 'globalxetfs.eu'], [/ossiam/i, 'ossiam.com'],
+  [/fidelity/i, 'fidelity.com'], [/pimco/i, 'pimco.com'], [/ark\b/i, 'ark-funds.com']
+];
+function issuerLogoUrl(name) {
+  for (const x of ISSUERS) if (x[0].test(String(name || ''))) return 'https://www.google.com/s2/favicons?domain=' + x[1] + '&sz=128';
+  return '';
+}
+function issCacheLoad() { const c = lsGet(LS_ISS); if (c && c.by && typeof c.by === 'object') ISS.by = c.by; }
+/* Pide el nombre completo (con el emisor) de los fondos cuyo logo no se ha encontrado, una sola vez por ISIN. */
+async function issuerSync() {
+  if (ISS.busy || S.demo || !LOGOS.wait.size) return;
+  const todo = t212Assets().concat(trAssets()).filter(a => a.isin && LOGOS.wait.has(a.isin) && ISS.by[a.isin] == null && !(ISS.tried[a.isin] && Date.now() - ISS.tried[a.isin] < 300000));
+  if (!todo.length) return;
+  ISS.busy = true;
+  let got = false;
+  try {
+    for (const a of todo) {
+      ISS.tried[a.isin] = Date.now();
+      try {
+        const j = await mkFetch(a, '5d');
+        if (j && typeof j.name === 'string' && j.name) { ISS.by[a.isin] = j.name; got = true; LOGOS.wait.delete(a.isin); delete LOGOS.map[a.isin]; }
+      } catch (e) { /* sin servidor al día: se reintenta más tarde */ }
+    }
+  } finally { ISS.busy = false; }
+  if (got) { lsSet(LS_ISS, { by: ISS.by }); scheduleRender(); }
+}
 const AD = { tab: 'inv', q: '', mine: [], cat: [], cashMode: null };
-function saveUI() { lsSet(LS_UI, { tab: UI.tab, range: UI.range, filter: UI.filter, sort: UI.sort }); }
+function saveUI() { lsSet(LS_UI, { tab: UI.tab, src: UI.src, range: UI.range, filter: UI.filter, sort: UI.sort }); }
 function setTab(t) {
   if (!TABS.includes(t)) return;
   const changed = t !== UI.tab;
@@ -1092,7 +1275,7 @@ function render(anim) {
   if (S.mode === 'loading' && !S.demo) html = vLoading();
   else {
     const M = model();
-    html = UI.tab === 'inversiones' ? vInv(M) : UI.tab === 'liquidez' ? vCash(M) : UI.tab === 'planes' ? vPlans(M) : vResumen(M);
+    html = UI.tab === 'inversiones' ? vInv(M) : UI.tab === 'liquidez' ? vCash(M) : UI.tab === 'planes' ? vPlans(M) : vResumen(model(srcEff()));
   }
   v.innerHTML = html;
   if (anim && !RM.matches) { v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
@@ -1145,14 +1328,16 @@ function subDefault(M) {
 function vResumen(M) {
   if (!M.any) return emptyState();
   const R = UI.range;
-  const ranges = [[30, '1M'], [91, '3M'], [182, '6M'], [365, '1A']];
+  const ranges = [[1, '1D'], [7, '1S'], [30, '1M'], [91, '3M'], [182, '6M'], [0, 'YTD'], [365, '1A'], [-1, 'Todo']];
   return '<div class="stack">' +
     '<section class="hero">' +
       '<div class="panel hero-main">' +
-        '<p class="label">Patrimonio total</p>' +
+        '<div class="hero-top"><p class="label">' + (srcEff() === 'all' ? 'Patrimonio total' : 'Patrimonio en ' + SRC_LABEL[srcEff()]) + '</p>' +
+        (srcList().length > 1 ? '<div class="seg small" role="tablist" aria-label="Cuenta">' + ['all'].concat(srcList()).map(k => '<button role="tab" data-action="src-set" data-s="' + k + '" aria-selected="' + (srcEff() === k) + '">' + SRC_LABEL[k] + '</button>').join('') + '</div>' : '') + '</div>' +
         '<p class="big money" id="bigVal">' + eur(M.net) + '</p>' +
         '<div class="subline" id="bigSub">' + subDefault(M) + '</div>' +
         '<div class="chart-wrap"><div class="chart" id="mainChart" aria-label="Evolución del patrimonio"></div></div>' +
+        '<dl class="rstats" id="chartStats"></dl>' +
         '<div class="chart-foot"><div class="legend-inline"><span><i></i>Patrimonio</span><span><i class="dash"></i>Aportado</span></div>' +
         '<div class="seg small" role="tablist" aria-label="Periodo">' + ranges.map(r => '<button role="tab" data-action="range" data-r="' + r[0] + '" aria-selected="' + (R === r[0]) + '">' + r[1] + '</button>').join('') + '</div></div>' +
       '</div>' +
@@ -1191,7 +1376,7 @@ function upcomingHTML() {
     const amt = trPlanAmount(p);
     const iv = (p.parameters && p.parameters.interval != null) ? p.parameters.interval : p.interval;
     const nx = trPlanNext(p);
-    return '<li><div class="l"><strong>' + esc(name) + (p.paused ? ' <span class="pill warn">En pausa</span>' : '') + '</strong><small>' + esc(trIntervalLabel(iv)) + (nx ? ' · próxima ' + datefs(nx) : '') + '</small></div><div class="r num">' + (amt != null ? eur(amt) : '—') + '</div></li>';
+    return '<li><div class="l ll">' + logoBadge(isin, name, '--k-tr') + '<span style="min-width:0"><strong>' + esc(name) + (p.paused ? ' <span class="pill warn">En pausa</span>' : '') + '</strong><small>' + esc(trIntervalLabel(iv)) + (nx ? ' · próxima ' + datefs(nx) : '') + '</small></span></div><div class="r num">' + (amt != null ? eur(amt) : '—') + '</div></li>';
   }).join('') + '</ul>';
 }
 function topHTML(M) {
@@ -1200,16 +1385,38 @@ function topHTML(M) {
   return '<ul class="simple-list">' + list.map(p => {
     const action = p.broker ? 'open-broker' : 'open-asset';
     const src = p.a.source === 't212' ? 'Trading 212' : p.a.source === 'tr' ? 'Trade Republic' : '';
-    return '<li><button class="lb" data-action="' + action + '" data-id="' + esc(p.a.id) + '"><span class="l ll"><img class="logo sm" data-isin="' + esc(p.a.isin || '') + '" alt=""><span style="min-width:0"><strong>' + esc(p.a.name) + '</strong><small>' + (src ? src + ' · ' : '') + TYPES[typeOf(p.a)].l + (p.a.symbol ? ' · ' + esc(p.a.symbol) : '') + '</small></span></span><span class="r">' + eur(p.value) + '<small class="' + cls(p.pnl) + '">' + pct(p.pnlPct) + '</small></span></button></li>';
+    return '<li><button class="lb" data-action="' + action + '" data-id="' + esc(p.a.id) + '"><span class="l ll">' + logoBadge(p.a.isin, p.a.name, p.broker ? (p.a.source === 't212' ? '--k-t212' : '--k-tr') : TYPES[typeOf(p.a)].k) + '<span style="min-width:0"><strong>' + esc(p.a.name) + '</strong><small>' + (src ? src + ' · ' : '') + TYPES[typeOf(p.a)].l + (p.a.symbol ? ' · ' + esc(p.a.symbol) : '') + '</small></span></span><span class="r">' + eur(p.value) + '<small class="' + cls(p.pnl) + '">' + pct(p.pnlPct) + '</small></span></button></li>';
   }).join('') + '</ul>';
+}
+/* Cuadro con iniciales y, encima, el logo cuando se encuentra (por ISIN). */
+function logoBadge(isin, name, kvar) {
+  const ini = String(name || '?').replace(/\(.*?\)/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+  return '<span class="badge" style="--k:var(' + (kvar || '--k-fund') + ')"><span>' + esc(ini) + '</span><img class="logo" data-isin="' + esc(isin || '') + '" alt=""></span>';
 }
 function badgeTxt(a) {
   const s = String(a.symbol || '').split(/[.\-=]/)[0];
   if (s && s.length <= 5 && !/^0P/i.test(s) && !/^DEMO/.test(s)) return s.slice(0, 4).toUpperCase();
   return String(a.name || '?').replace(/\(.*?\)/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 }
+/* Respaldo de las miniaturas: cierres diarios de 1 año descargados al vuelo para las posiciones de broker sin histórico. */
+const SPK = { by: {}, tried: {}, busy: false };
+async function sparkPrefetch() {
+  if (SPK.busy || S.demo) return;
+  const todo = t212Assets().concat(trAssets()).filter(a => a.isin && a.vQty > 0 && !(a.hist && a.hist.c && a.hist.c.length >= 3) && !SPK.by[a.isin] && !(SPK.tried[a.isin] && Date.now() - SPK.tried[a.isin] < 300000));
+  if (!todo.length) return;
+  SPK.busy = true;
+  let got = false;
+  try {
+    for (const a of todo) {
+      SPK.tried[a.isin] = Date.now();
+      const R = await mkSeries(a, '1y');
+      if (R.s && R.s.unit === 'd' && R.s.c.length >= 3) { SPK.by[a.isin] = { t: R.s.t, c: R.s.c }; got = true; }
+    }
+  } finally { SPK.busy = false; }
+  if (got) scheduleRender();
+}
 function sparkSVG(a) {
-  const hh = a.hist; if (!hh || !hh.c || hh.c.length < 3) return '';
+  const hh = a.hist && a.hist.c && a.hist.c.length >= 3 ? a.hist : (a.isin && SPK.by[a.isin]); if (!hh || !hh.c || hh.c.length < 3) return '';
   const c = hh.c.slice(-64); const w = 92, h = 30;
   let lo = Math.min.apply(null, c), hi = Math.max.apply(null, c); if (hi - lo < 1e-12) { hi += 1; lo -= 1; }
   let d = '';
@@ -1264,7 +1471,7 @@ function vInv(M) {
 function vCash(M) {
   const brokerCards = [];
   if (M.t212Cash > 0.005) brokerCards.push('<div class="card"><div class="card-top"><h4>Trading 212</h4><span class="pill src">Broker</span></div><div class="amt">' + eur(M.t212Cash) + '</div><div class="meta"><span>Efectivo</span><b>solo lectura</b></div></div>');
-  if (M.trCash > 0.005) brokerCards.push('<div class="card"><div class="card-top"><h4>Trade Republic</h4><span class="pill src">Broker</span></div><div class="amt">' + eur(M.trCash) + '</div><div class="meta"><span>Efectivo</span><b>solo lectura</b></div></div>');
+  if (M.trCash > 0.005) brokerCards.push('<div class="card"><div class="card-top"><h4>Trade Republic</h4><span class="pill src">Broker</span></div><div class="amt">' + eur(M.trCash) + '</div><div class="meta"><span>Efectivo</span><b>solo lectura</b><span>Intereses cobrados</span><b class="' + cls(trInterestTotal()) + '">' + seur(trInterestTotal()) + '</b><span>Próximo mes (est.)</span><b>' + eur(M.trCash * (Math.pow(1 + TR_APY / 100, 30 / 365) - 1)) + '</b></div></div>');
   if (!M.cash.length && !brokerCards.length) return emptyInline('Sin cuentas de liquidez', 'Añade tu cuenta remunerada con su TAE y verás cuánto te genera cada mes.', 'add-cash', 'Añadir cuenta');
   const cards = M.cash.slice().sort((a, b) => b.bal - a.bal).map(r => {
     const c = r.c;
@@ -1287,7 +1494,7 @@ function planCard(p) {
   const nx = p.active ? nextRunEd(p) : null;
   const kind = p.target === 'cash' ? 'Liquidez' : (tgt ? TYPES[typeOf(tgt)].l : 'Inversión');
   return '<div class="card">' +
-    '<div class="card-top"><div style="min-width:0"><h4>' + esc(tgt ? tgt.name : 'Destino eliminado') + '</h4><span class="faint" style="font-size:13px">' + kind + '</span></div>' +
+    '<div class="card-top"><div style="min-width:0;display:flex;gap:10px;align-items:center">' + (tgt && p.target !== 'cash' ? logoBadge(tgt.isin, tgt.name, TYPES[typeOf(tgt)].k) : '') + '<div style="min-width:0"><h4>' + esc(tgt ? tgt.name : 'Destino eliminado') + '</h4><span class="faint" style="font-size:13px">' + kind + '</span></div></div>' +
     '<button class="switch" role="switch" aria-checked="' + (!!p.active) + '" aria-label="' + (p.active ? 'Pausar plan' : 'Reanudar plan') + '" data-action="toggle-plan" data-id="' + esc(p.id) + '"></button></div>' +
     '<div class="amt">' + eur(p.amount) + '<span class="faint" style="font-size:14px;font-weight:500;letter-spacing:0"> por aportación</span></div>' +
     '<div class="meta"><span>Cuándo</span><b>' + esc(daysText(p.days)) + '</b><span>Próxima</span><b>' + (p.active ? (nx != null ? datef(fromEd(nx)) : 'Sin más fechas') : 'En pausa') + '</b>' +
@@ -1372,11 +1579,72 @@ function afterRender() {
   applyLogos();
   const box = $('#mainChart');
   if (RO) { RO.disconnect(); RO = null; }
+  sparkPrefetch(); issuerSync();
   if (!box) return;
   drawMain(box); bindScrub(box);
   if (window.ResizeObserver) { let w = box.clientWidth; RO = new ResizeObserver(() => { if (box.clientWidth !== w) { w = box.clientWidth; drawMain(box); } }); RO.observe(box); }
 }
-function getHist() { if (!UI.histCache || UI.histCache.r !== UI.range) UI.histCache = { r: UI.range, h: history(UI.range) }; return UI.histCache.h; }
+/* ¿Aún se están descargando los precios de alguna posición de broker? (para no decir "sin datos" antes de tiempo) */
+function histPending() {
+  if (S.demo) return false;
+  if (AR.t2h || AR.trh || SPK.busy || T.state === 'busy' || TR.state === 'busy' || TR.state === 'loading') return true;
+  for (const a of t212Assets().concat(trAssets())) {
+    if (!(a.vQty > 0) || !a.isin || (a.hist && a.hist.c && a.hist.c.length > 1)) continue;
+    const t2 = a.source === 't212', e = (t2 ? T2H : TRH).by[a.isin];
+    if (!e && (t2 ? brokersReady() : !!trLocal())) return true;
+  }
+  return false;
+}
+function getHist() {
+  if (UI.range === 1) return H1.s === srcEff() ? H1.h : null;
+  if (!UI.histCache || UI.histCache.r !== UI.range || UI.histCache.s !== srcEff()) UI.histCache = { r: UI.range, s: srcEff(), h: history(UI.range) };
+  return UI.histCache.h;
+}
+/* 1D del patrimonio: suma las velas intradía de las posiciones de broker (Yahoo, Trade Republic o CoinGecko);
+   el resto de la cartera (activos manuales, liquidez) cuenta como constante. t en segundos. */
+const H1 = { at: 0, h: null, busy: false, loaded: false, s: 'all' };
+async function history1d() {
+  const M = model(srcEff());
+  const ser = [];
+  for (const p of M.pos) {
+    if (!p.broker || !(p.qty > 0) || !p.a.isin) continue;
+    const R = await mkSeries(p.a, '1d');
+    if (R.s && R.s.unit === 's' && R.s.c.length >= 2 && p.a.price > 0) ser.push({ p, s: R.s });
+  }
+  if (!ser.length) return null;
+  const set = new Set();
+  for (const x of ser) for (const t of x.s.t) set.add(t);
+  const ts = Array.from(set).sort((a, b) => a - b), n = ts.length;
+  if (n < 2) return null;
+  const used = new Set(ser.map(x => x.p));
+  let rest = 0, restCost = 0;
+  for (const p of M.pos) if (!used.has(p)) { rest += p.value; restCost += p.cost; }
+  rest += M.cashTotal; restCost += M.cashTotal - M.interest;
+  const val = new Float64Array(n), con = new Float64Array(n);
+  for (const x of ser) {
+    const f = x.p.value / x.p.a.price; // el último punto de la serie vale el precio actual
+    let j = 0;
+    for (let i = 0; i < n; i++) {
+      while (j + 1 < x.s.t.length && x.s.t[j + 1] <= ts[i]) j++;
+      val[i] += x.s.c[j] * f; con[i] += x.p.cost;
+    }
+  }
+  for (let i = 0; i < n; i++) { val[i] += rest; con[i] += restCost; }
+  return { start: Math.floor(ts[0] / 86400), n, val, con, ts };
+}
+async function load1d() {
+  if (H1.busy) return;
+  H1.busy = true;
+  const sv = srcEff();
+  try { H1.h = await history1d(); } catch (e) { H1.h = null; }
+  H1.s = sv; H1.busy = false; H1.at = Date.now(); H1.loaded = true;
+  const box = $('#mainChart'); if (box && UI.range === 1) drawMain(box);
+}
+function hLabel(H, i) {
+  if (!H.ts) return datefs(fromEd(H.start + i));
+  const d = new Date(H.ts[i] * 1000);
+  return (H.ts[H.n - 1] - H.ts[0]) > 20 * 3600 ? d.toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
 function niceTicks(lo, hi, n) {
   const span = hi - lo; if (!(span > 0)) return [];
   const raw = span / n; const mag = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -1385,8 +1653,12 @@ function niceTicks(lo, hi, n) {
   return out;
 }
 function drawMain(box) {
+  if (UI.range === 1 && !H1.busy && (!H1.loaded || H1.s !== srcEff() || Date.now() - H1.at > 60000)) load1d();
   const H = getHist();
-  if (!H) { box.innerHTML = '<div class="chart-empty">La evolución aparecerá cuando tu cartera tenga al menos dos días de historia.</div>'; box.style.cursor = 'default'; box._geo = null; return; }
+  const stats = $('#chartStats');
+  if (!H && UI.range === 1) { box.innerHTML = '<div class="chart-empty" role="status">' + (H1.loaded && H1.s === srcEff() ? 'El detalle del día necesita posiciones de Trading 212 o Trade Republic con precios de mercado.' : 'Cargando…') + '</div>'; box.style.cursor = 'default'; box._geo = null; if (stats) stats.innerHTML = ''; return; }
+  if (!H && histPending()) { box.innerHTML = '<div class="chart-empty" role="status"><span class="loading-box" style="padding:0"><span class="spin"></span>Cargando…</span></div>'; box.style.cursor = 'default'; box._geo = null; if (stats) stats.innerHTML = ''; return; }
+  if (!H) { box.innerHTML = '<div class="chart-empty">La evolución aparecerá cuando tu cartera tenga al menos dos días de historia.</div>'; box.style.cursor = 'default'; box._geo = null; if (stats) stats.innerHTML = ''; return; }
   const w = Math.max(200, box.clientWidth || 600), h = box.clientHeight || 220;
   const top = 10, bottom = 24, ih = h - top - bottom;
   let lo = Infinity, hi = -Infinity, allPos = true;
@@ -1398,7 +1670,18 @@ function drawMain(box) {
   const Y = v => top + (1 - (v - lo) / (hi - lo)) * ih;
   let dv = '', dc = '';
   for (let i = 0; i < H.n; i++) { dv += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(H.val[i]).toFixed(1); dc += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(H.con[i]).toFixed(1); }
-  const ticks = niceTicks(lo, hi, 3);
+  const ticks = niceTicks(lo, hi, h > 250 ? 5 : 3);
+  // máximo y mínimo del periodo (sobre el patrimonio)
+  let iMax = 0, iMin = 0;
+  for (let i = 1; i < H.n; i++) { if (H.val[i] > H.val[iMax]) iMax = i; if (H.val[i] < H.val[iMin]) iMin = i; }
+  const long = H.n > 200;
+  const dlab = i => H.ts ? new Date(H.ts[i] * 1000).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : (long ? MYF.format(new Date((H.start + i) * DAY)) : datefs(fromEd(H.start + i)));
+  const xl = [];
+  for (let k = 1; k < 4; k++) { const i = Math.round(k * (H.n - 1) / 4); xl.push('<span class="xlab" style="left:' + (X(i) / w * 100).toFixed(1) + '%;transform:translateX(-50%)">' + dlab(i) + '</span>'); }
+  const mm = (i, up) => {
+    const x = Math.max(34, Math.min(w - 34, X(i)));
+    return '<span class="mm" style="left:' + x.toFixed(1) + 'px;top:' + (Y(H.val[i]) + (up ? -22 : 8)).toFixed(1) + 'px">' + compactEur(H.val[i]) + '</span>';
+  };
   box.innerHTML = '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" aria-hidden="true">' +
     '<defs><linearGradient id="gMain" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>' +
     ticks.map(t => '<line x1="0" x2="' + w + '" y1="' + Y(t).toFixed(1) + '" y2="' + Y(t).toFixed(1) + '" style="stroke:var(--line);stroke-width:1"/>').join('') +
@@ -1406,12 +1689,23 @@ function drawMain(box) {
     '<path d="' + dc + '" style="fill:none;stroke:var(--ink-3);stroke-width:1.5;stroke-dasharray:4 4"/>' +
     '<path d="' + dv + '" style="fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round"/>' +
     '<circle cx="' + X(H.n - 1).toFixed(1) + '" cy="' + Y(H.val[H.n - 1]).toFixed(1) + '" r="4" style="fill:var(--accent);stroke:var(--surface);stroke-width:2"/>' +
+    (iMax !== iMin ? '<circle cx="' + X(iMax).toFixed(1) + '" cy="' + Y(H.val[iMax]).toFixed(1) + '" r="3" style="fill:var(--gain)"/><circle cx="' + X(iMin).toFixed(1) + '" cy="' + Y(H.val[iMin]).toFixed(1) + '" r="3" style="fill:var(--loss)"/>' : '') +
     '<g class="xh" style="display:none"><line class="xhl" y1="' + top + '" y2="' + (top + ih) + '" style="stroke:var(--ink-3);stroke-width:1"/><circle class="xhc" r="5" style="fill:var(--accent);stroke:var(--surface);stroke-width:2"/></g>' +
     '</svg>' +
     ticks.map(t => '<span class="ylab" style="top:' + Y(t).toFixed(1) + 'px">' + compactEur(t) + '</span>').join('') +
-    '<span class="xlab" style="left:0">' + datefs(fromEd(H.start)) + '</span><span class="xlab" style="right:0">Hoy</span>';
+    (iMax !== iMin ? mm(iMax, true) + mm(iMin, false) : '') + xl.join('') +
+    '<span class="xlab" style="left:0">' + dlab(0) + '</span><span class="xlab" style="right:0">' + (H.ts ? 'Ahora' : 'Hoy') + '</span>';
   box.style.cursor = '';
   box._geo = { X, Y, H, w };
+  if (stats) {
+    const n1 = H.n - 1, dCon = H.con[n1] - H.con[0], gain = (H.val[n1] - H.val[0]) - dCon;
+    const baseV = H.val[0] + Math.max(0, dCon), gp = baseV > 0 ? gain / baseV : 0;
+    stats.innerHTML =
+      '<div><dt>Ganancia del periodo</dt><dd class="' + cls(gain) + '">' + seur(gain) + '<small>' + pct(gp) + '</small></dd></div>' +
+      '<div><dt>Aportado en el periodo</dt><dd>' + seur(dCon) + '</dd></div>' +
+      '<div><dt>Máximo</dt><dd>' + eur(H.val[iMax]) + '<small class="faint">' + hLabel(H, iMax) + '</small></dd></div>' +
+      '<div><dt>Mínimo</dt><dd>' + eur(H.val[iMin]) + '<small class="faint">' + hLabel(H, iMin) + '</small></dd></div>';
+  }
 }
 function bindScrub(box) {
   const move = e => {
@@ -1427,11 +1721,11 @@ function bindScrub(box) {
     const bv = $('#bigVal'), bs = $('#bigSub');
     if (bv) bv.textContent = eur(g.H.val[i]);
     const gain = g.H.val[i] - g.H.con[i];
-    if (bs) bs.innerHTML = '<span class="faint">' + datef(fromEd(g.H.start + i)) + '</span><span class="faint" style="margin-left:6px">Aportado ' + eur(g.H.con[i]) + '</span><span class="delta ' + cls(gain) + '">' + seur(gain) + '</span>';
+    if (bs) bs.innerHTML = '<span class="faint">' + (g.H.ts ? hLabel(g.H, i) : datef(fromEd(g.H.start + i))) + '</span><span class="faint" style="margin-left:6px">Aportado ' + eur(g.H.con[i]) + '</span><span class="delta ' + cls(gain) + '">' + seur(gain) + '</span>';
   };
   const reset = () => {
     const xh = box.querySelector('.xh'); if (xh) xh.style.display = 'none';
-    const M = model(); const bv = $('#bigVal'), bs = $('#bigSub');
+    const M = model(srcEff()); const bv = $('#bigVal'), bs = $('#bigSub');
     if (bv) bv.textContent = eur(M.net); if (bs) bs.innerHTML = subDefault(M);
   };
   box.addEventListener('pointerdown', move);
@@ -1480,17 +1774,210 @@ function drawCashMini(id) {
   for (let i = from; i < r.ser.length; i++) { t.push(r.start + i); v.push(r.ser[i]); }
   box.innerHTML = miniSVG({ t, v, w: box.clientWidth || 480, h: 150, color: 'var(--k-etf)' });
 }
-function drawBrokerMini(id) {
-  const box = $('#miniChart'); if (!box) return;
-  const a = t212Assets().find(x => x.id === id) || trAssets().find(x => x.id === id);
-  if (!a) return;
-  const hh = a.hist;
-  if (!hh || !hh.c || hh.c.length < 2) {
-    box.innerHTML = '<div class="chart-empty">' + (a.source === 't212' ? 'Trading 212 no publica histórico de precios en su API; la gráfica aparece con tus operaciones importadas.' : 'Trade Republic no devolvió histórico para este instrumento.') + '</div>';
-    return;
+/* ---------- Gráfica de mercado de una posición de broker (precio del activo, no tu cartera) ---------- */
+const MK = { range: '1m', id: '', cache: {} };
+const MK_RANGES = [['1d', '1D'], ['1w', '1S'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1A'], ['max', 'Máx']];
+const MK_SRV = { '1d': '1d', '1w': '5d', '1m': '1mo', '3m': '3mo', '6m': '6mo', '1y': '1y', 'max': 'max' };
+const MK_DAYS = { '1w': 7, '1m': 30, '3m': 91, '6m': 182, '1y': 365 };
+const MK_LABEL = { '1d': 'hoy', '1w': 'en 1 semana', '1m': 'en 1 mes', '3m': 'en 3 meses', '6m': 'en 6 meses', '1y': 'en 1 año', 'max': 'desde el inicio' };
+const MK_TTL = { '1d': 60000 }; // el resto se reutiliza 5 min
+function brokerAsset(id) { return t212Assets().find(x => x.id === id) || trAssets().find(x => x.id === id); }
+function mkFetch(a, r) {
+  const q = '/market/chart?range=' + MK_SRV[r] + '&isin=' + encodeURIComponent(a.isin);
+  if (a.source === 't212') {
+    if (!brokersReady()) { const e = new Error('sin servidor'); e.code = 'no_server'; throw e; }
+    return brokerFetch(q);
   }
-  const qty = a.vQty || 0;
-  box.innerHTML = miniSVG({ t: hh.t, v: hh.c, w: box.clientWidth || 480, h: 150, color: 'var(--k-tr)', hline: qty > 0 && a.vCost ? a.vCost / qty : null });
+  if (!trLocal()) { const e = new Error('sin servidor'); e.code = 'no_server'; throw e; }
+  return trFetch(q);
+}
+/* Por qué falló una consulta de mercado, en palabras del usuario. */
+function mkWhy(a, e) {
+  const c = String(e && e.code || ''), st = e && e.status;
+  const srv = a.source === 't212' ? 'Despliega la última versión de worker/precios.js en Cloudflare' : 'Reinicia tr-server (bun server.mjs) con la última versión';
+  if (c === 'market_not_found') return 'Yahoo Finance no tiene cotización para este instrumento.';
+  if (c === 'no_server') return a.source === 't212' ? 'Configura el servidor de brokers en Ajustes para ver las gráficas.' : 'Configura el servidor local de Trade Republic en Ajustes para ver las gráficas.';
+  if (c === 'broker_unreachable' || c === 'tr_unreachable') return 'No hay conexión con el servidor de ' + (a.source === 't212' ? 'brokers' : 'Trade Republic') + '.';
+  if (st === 404 || st === 400) return 'El servidor aún no tiene esta gráfica. ' + srv + '.';
+  if (c === 'access_denied') return 'Clave de acceso incorrecta. Revísala en Ajustes.';
+  return 'No pude descargar el precio de mercado. Reintenta en un momento.';
+}
+/* Normaliza una respuesta de velas a { unit, t, c, v, prev }, escalada para que el último punto
+   coincida con el precio actual del broker (evita líos de divisa). */
+function mkNorm(j, a) {
+  if (!(j && Array.isArray(j.t) && Array.isArray(j.c) && j.t.length >= 2 && j.t.length === j.c.length)) return null;
+  const k = a.price > 0 ? a.price / j.c[j.c.length - 1] : 1;
+  return { unit: j.unit === 's' ? 's' : 'd', t: j.t.map(Number), c: j.c.map(x => x * k), v: Array.isArray(j.v) && j.v.length === j.t.length && j.v.some(x => x > 0) ? j.v : null, prev: j.prev > 0 ? j.prev * k : null };
+}
+/* Velas [[ms, cierre, volumen?]] -> respuesta normalizable. Si hay menos de ~20 h entre velas, son intradía (t en segundos). */
+function mkFromCandles(cd) {
+  if (!Array.isArray(cd) || cd.length < 2) return null;
+  const step = (Number(cd[cd.length - 1][0]) - Number(cd[0][0])) / (cd.length - 1);
+  const intra = step < 20 * 3600000;
+  const t = [], c = [], v = [];
+  for (const x of cd) {
+    const d = intra ? Math.floor(Number(x[0]) / 1000) : Math.floor(Number(x[0]) / DAY), px = Number(x[1]);
+    if (!(px > 0) || !isFinite(d)) continue;
+    if (t.length && t[t.length - 1] === d) { c[c.length - 1] = px; continue; }
+    t.push(d); c.push(px); v.push(Number(x[2]) || 0);
+  }
+  return t.length >= 2 ? { unit: intra ? 's' : 'd', t, c, v } : null;
+}
+/* Criptos: CoinGecko (sin clave, admite el navegador). Hasta 90 días trae velas de 5 min / 1 h; más, diarias. */
+async function mkCrypto(a, r) {
+  const sym = trCryptoSymbol(a.isin); if (!sym) return null;
+  const id = CG_MAP[sym] || String(sym).toLowerCase();
+  const days = { '1d': 1, '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365, 'max': 365 }[r];
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/coins/' + encodeURIComponent(id) + '/market_chart?vs_currency=eur&days=' + days);
+    if (!res.ok) return null;
+    const j = await res.json();
+    return mkNorm(mkFromCandles(j && j.prices), a); // sin volumen: CoinGecko solo da el de 24 h móvil, no por vela
+  } catch (e) { return null; }
+}
+/* Trade Republic: su propio historial de precios (el que muestra su app). */
+async function mkTrOwn(a, r) {
+  try {
+    const rg = { '1d': '1d', '1w': '5d', '1m': '1m', '3m': '3m', '6m': '6m', '1y': '1y', 'max': 'max' }[r];
+    const j = await trFetch('/history?isin=' + encodeURIComponent(a.isin) + '&range=' + rg + '&exchange=LSX');
+    return mkNorm(mkFromCandles(j && j.candles), a);
+  } catch (e) { return null; }
+}
+/* Serie de precios del activo: { s: {unit,t,c,v,prev}, why }. Cripto: CoinGecko. Trade Republic: su historial
+   y, si no hay, Yahoo. Trading 212: Yahoo (su API no da precios). */
+async function mkSeries(a, r) {
+  const out = { s: null, why: '' };
+  if (!a.isin) { out.why = 'Este instrumento no tiene ISIN.'; return out; }
+  const key = a.isin + '|' + r, hit = MK.cache[key];
+  if (hit && Date.now() - hit.at < (MK_TTL[r] || 300000)) { out.s = hit.s; return out; }
+  const crypto = a.source === 'tr' && (a.type === 'crypto' || /^XF/i.test(a.isin));
+  let s = null;
+  if (crypto) {
+    s = await mkCrypto(a, r);
+    if (!s) out.why = 'CoinGecko no responde ahora mismo. Reintenta en un minuto.';
+  } else {
+    if (a.source === 'tr' && trLocal()) s = await mkTrOwn(a, r);
+    if (!s) { try { s = mkNorm(await mkFetch(a, r), a); } catch (e) { out.why = mkWhy(a, e); } }
+  }
+  if (s) { MK.cache[key] = { at: Date.now(), s }; out.s = s; return out; }
+  if (!out.why) out.why = 'No hay datos de este periodo.';
+  // Respaldo con el histórico diario guardado (periodos largos y servidor sin intradía)
+  if (r !== '1d' && r !== '1w') {
+    let hist = null;
+    const raw = a.source === 't212' && a.isin ? T2H.by[a.isin] : null;
+    if (raw && raw.t && raw.t.length > 1) { const k = a.price > 0 ? a.price / raw.c[raw.c.length - 1] : 1; hist = { t: raw.t, c: raw.c.map(x => x * k) }; }
+    else if (a.source === 'tr' && a.hist && a.hist.t && a.hist.t.length > 1) hist = a.hist;
+    if (hist) {
+      const from = todayEd() - (MK_DAYS[r] || 100000);
+      let i = 0; while (i < hist.t.length - 2 && hist.t[i] < from) i++;
+      out.s = { unit: 'd', t: hist.t.slice(i), c: hist.c.slice(i), v: null, prev: null };
+    }
+  }
+  return out;
+}
+function mkWhen(S, r, i) {
+  if (S.unit === 'd') return datef(fromEd(S.t[i]));
+  const d = new Date(S.t[i] * 1000);
+  return r === '1d' ? d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function mkTick(S, r, i) {
+  if (S.unit === 's') {
+    const d = new Date(S.t[i] * 1000);
+    return r === '1d' ? d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  }
+  return (S.t[S.t.length - 1] - S.t[0]) > 400 ? MYF.format(new Date(S.t[i] * DAY)) : datefs(fromEd(S.t[i]));
+}
+function mkVol(v) { return v >= 1e6 ? NP.format(v / 1e6) + ' M' : v >= 1e3 ? NP.format(v / 1e3) + ' K' : String(Math.round(v)); }
+function mkSub(S, r, base, i) {
+  const last = S.c.length - 1, v = S.c[i], chg = base > 0 ? v / base - 1 : 0;
+  return '<span class="money" style="font-weight:600">' + pxf(v) + '</span><span class="delta ' + cls(chg) + '">' + pct(chg) + '</span><span class="faint">' + (i === last ? MK_LABEL[r] : mkWhen(S, r, i)) + '</span>' +
+    (S.v && i !== last ? '<span class="faint">Vol. ' + mkVol(S.v[i]) + '</span>' : '');
+}
+async function drawMarket(id) {
+  const box = $('#mktChart'); if (!box) return;
+  const a = brokerAsset(id); if (!a) return;
+  MK.id = id;
+  const r = MK.range, sub = $('#mktSub'), stats = $('#mktStats');
+  for (const b of $$('#mktTabs button')) b.setAttribute('aria-selected', String(b.dataset.r === r));
+  box.innerHTML = '<div class="chart-empty" role="status"><span class="loading-box" style="padding:0"><span class="spin"></span>Cargando…</span></div>'; box._geo = null; if (sub) sub.innerHTML = ''; if (stats) stats.innerHTML = '';
+  const R = await mkSeries(a, r), S = R.s;
+  if ($('#mktChart') !== box || MK.range !== r) return; // se abrió otra ficha o periodo mientras tanto
+  if (!S || S.c.length < 2) { box.innerHTML = '<div class="chart-empty" role="status">' + esc(R.why) + '</div>'; return; }
+  const n = S.c.length;
+  const base = r === '1d' && S.prev > 0 ? S.prev : S.c[0];
+  const up = S.c[n - 1] >= base, color = up ? 'var(--gain)' : 'var(--loss)';
+  const W = Math.max(260, box.clientWidth || 480), H = box.clientHeight || 300;
+  const padR = 56, top = 10, bottom = 22, volH = S.v ? Math.round(H * 0.17) : 0;
+  const pw = W - padR, ih = H - top - bottom - volH, yb = top + ih; // yb: base del área de precio
+  let lo = Infinity, hi = -Infinity;
+  for (const x of S.c) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+  if (r === '1d' && S.prev > 0) { lo = Math.min(lo, S.prev); hi = Math.max(hi, S.prev); }
+  if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
+  const pd = (hi - lo) * 0.1; lo -= pd; hi += pd;
+  const X = i => i / (n - 1) * pw, Y = v => top + (1 - (v - lo) / (hi - lo)) * ih;
+  let d = ''; for (let i = 0; i < n; i++) d += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(S.c[i]).toFixed(1);
+  const ticks = niceTicks(lo, hi, 5), tf = v => NP.format(Math.abs(v) >= 100 ? Math.round(v) : v).replace(/,00$/, '');
+  const xi = [0, 1, 2, 3, 4].map(k => Math.round(k * (n - 1) / 4));
+  let vmax = 0; if (S.v) for (const x of S.v) vmax = Math.max(vmax, x);
+  let bars = '';
+  if (S.v && vmax > 0) {
+    const bw = Math.max(1, pw / n * 0.7);
+    for (let i = 0; i < n; i++) { const vh = S.v[i] / vmax * (volH - 4); if (vh < .5) continue; bars += '<rect x="' + (X(i) - bw / 2).toFixed(1) + '" y="' + (H - bottom - vh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + vh.toFixed(1) + '" style="fill:' + (S.c[i] >= (i ? S.c[i - 1] : S.c[i]) ? 'var(--gain)' : 'var(--loss)') + ';opacity:.35"/>'; }
+  }
+  const lastY = Y(S.c[n - 1]);
+  box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" aria-hidden="true">' +
+    '<defs><linearGradient id="gMkt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:' + color + ';stop-opacity:.24"/><stop offset="1" style="stop-color:' + color + ';stop-opacity:0"/></linearGradient></defs>' +
+    ticks.map(t => '<line x1="0" x2="' + pw + '" y1="' + Y(t).toFixed(1) + '" y2="' + Y(t).toFixed(1) + '" style="stroke:var(--line);stroke-width:1"/>').join('') +
+    xi.slice(1, 4).map(i => '<line y1="' + top + '" y2="' + (H - bottom) + '" x1="' + X(i).toFixed(1) + '" x2="' + X(i).toFixed(1) + '" style="stroke:var(--line);stroke-width:1"/>').join('') +
+    bars +
+    '<path d="' + d + 'L' + pw + ' ' + yb + 'L0 ' + yb + 'Z" style="fill:url(#gMkt)"/>' +
+    (r === '1d' && S.prev > 0 ? '<line x1="0" x2="' + pw + '" y1="' + Y(S.prev).toFixed(1) + '" y2="' + Y(S.prev).toFixed(1) + '" style="stroke:var(--ink-3);stroke-width:1;stroke-dasharray:4 4"/>' : '') +
+    '<line x1="0" x2="' + pw + '" y1="' + lastY.toFixed(1) + '" y2="' + lastY.toFixed(1) + '" style="stroke:' + color + ';stroke-width:1;stroke-dasharray:1 3"/>' +
+    '<path d="' + d + '" style="fill:none;stroke:' + color + ';stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round"/>' +
+    '<circle cx="' + X(n - 1).toFixed(1) + '" cy="' + lastY.toFixed(1) + '" r="4" style="fill:' + color + ';stroke:var(--sheet);stroke-width:2"/>' +
+    '<g class="xh" style="display:none"><line class="xhv" y1="' + top + '" y2="' + (H - bottom) + '" style="stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3"/><line class="xhh" x1="0" x2="' + pw + '" style="stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3"/><circle class="xhc" r="4.5" style="fill:' + color + ';stroke:var(--sheet);stroke-width:2"/></g>' +
+    '</svg>' +
+    ticks.map(t => '<span class="mk-y" style="top:' + Y(t).toFixed(1) + 'px;left:' + (pw + 6) + 'px">' + tf(t) + '</span>').join('') +
+    '<span class="mk-tag" style="top:' + lastY.toFixed(1) + 'px;left:' + (pw + 2) + 'px;background:' + color + '">' + tf(S.c[n - 1]) + '</span>' +
+    '<span class="mk-tag mk-cur" style="display:none;left:' + (pw + 2) + 'px"></span>' +
+    xi.map((i, k) => '<span class="xlab" style="' + (k === 0 ? 'left:0' : k === 4 ? 'left:' + (pw - 2) + 'px;transform:translateX(-100%)' : 'left:' + X(i).toFixed(1) + 'px;transform:translateX(-50%)') + '">' + mkTick(S, r, i) + '</span>').join('');
+  if (sub) sub.innerHTML = mkSub(S, r, base, n - 1);
+  if (stats) {
+    let hiV = -Infinity, loV = Infinity, vs = 0;
+    for (let i = 0; i < n; i++) { hiV = Math.max(hiV, S.c[i]); loV = Math.min(loV, S.c[i]); if (S.v) vs += S.v[i]; }
+    stats.innerHTML = '<div><dt>' + (r === '1d' && S.prev > 0 ? 'Cierre anterior' : 'Inicio del periodo') + '</dt><dd>' + pxf(base) + '</dd></div>' +
+      '<div><dt>Máximo</dt><dd>' + pxf(hiV) + '</dd></div><div><dt>Mínimo</dt><dd>' + pxf(loV) + '</dd></div>' +
+      '<div><dt>Volumen</dt><dd>' + (vs > 0 ? mkVol(vs) : '-') + '</dd></div>';
+  }
+  box._geo = { S, r, base, X, Y, pw, n, tf };
+  if (!box._bound) {
+    box._bound = true;
+    const move = e => {
+      const g = box._geo; if (!g) return;
+      const rc = box.getBoundingClientRect();
+      const x = Math.max(0, Math.min(g.pw, e.clientX - rc.left));
+      const i = Math.round(x / g.pw * (g.n - 1));
+      const xh = box.querySelector('.xh'); if (!xh) return;
+      xh.style.display = '';
+      const px = g.X(i).toFixed(1), py = g.Y(g.S.c[i]).toFixed(1);
+      const v = box.querySelector('.xhv'); v.setAttribute('x1', px); v.setAttribute('x2', px);
+      const h = box.querySelector('.xhh'); h.setAttribute('y1', py); h.setAttribute('y2', py);
+      const c = box.querySelector('.xhc'); c.setAttribute('cx', px); c.setAttribute('cy', py);
+      const tg = box.querySelector('.mk-cur'); if (tg) { tg.style.display = ''; tg.style.top = py + 'px'; tg.textContent = g.tf(g.S.c[i]); }
+      const sb = $('#mktSub'); if (sb) sb.innerHTML = mkSub(g.S, g.r, g.base, i);
+    };
+    const reset = () => {
+      const g = box._geo; if (!g) return;
+      const xh = box.querySelector('.xh'); if (xh) xh.style.display = 'none';
+      const tg = box.querySelector('.mk-cur'); if (tg) tg.style.display = 'none';
+      const sb = $('#mktSub'); if (sb) sb.innerHTML = mkSub(g.S, g.r, g.base, g.n - 1);
+    };
+    box.addEventListener('pointerdown', move);
+    box.addEventListener('pointermove', move);
+    box.addEventListener('pointerleave', reset);
+    box.addEventListener('pointercancel', reset);
+    box.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') reset(); });
+  }
 }
 
 /* =========================================================
@@ -1555,6 +2042,7 @@ function paintSheet(focus) {
     if (f && isDesk()) { try { f.focus({ preventScroll: true }); } catch (e) { /* sin foco */ } }
   }
   if (v.after) v.after();
+  applyLogos();
 }
 function sheetBack() { if (SH.stack.length > 1) { SH.stack.pop(); paintSheet(true); } else closeSheet(); }
 function closeSheet(v0) {
@@ -1789,8 +2277,11 @@ function shBroker(id) {
   return head(a.name) +
     '<p class="help" style="margin-top:6px"><span class="pill src">' + esc(srcName) + '</span> Solo lectura · se sincroniza al actualizar el broker.</p>' +
     '<div class="asset-head"><span class="badge" style="--k:var(' + (a.source === 't212' ? '--k-t212' : '--k-tr') + ')"><span>' + esc(badgeTxt(a)) + '</span><img class="logo" data-isin="' + esc(a.isin || '') + '" alt=""></span><div style="min-width:0"><p class="label" style="margin:0">' + esc(a.symbol || a.isin || '') + '</p><p class="big2 money">' + pxf(a.price) + '</p></div></div>' +
-    '<div class="mini" id="miniChart"></div>' +
-    (a.source === 'tr' && a.hist && a.hist.c && a.hist.c.length > 1 ? '<p class="help">Histórico del propio Trade Republic. Línea discontinua: tu precio medio.</p>' : '') +
+    '<div class="subline" id="mktSub"></div>' +
+    '<div class="chart-wrap"><div class="chart" id="mktChart" style="height:300px" aria-label="Evolución del precio de ' + esc(a.name) + '"></div></div>' +
+    '<div class="chart-foot"><span class="help" style="margin:0">Precio del activo en el mercado, no tu cartera.</span>' +
+    '<div class="seg small" role="tablist" id="mktTabs" aria-label="Periodo">' + MK_RANGES.map(x => '<button role="tab" data-action="mkt-range" data-r="' + x[0] + '" aria-selected="' + (MK.range === x[0]) + '">' + x[1] + '</button>').join('') + '</div></div>' +
+    '<dl class="rstats" id="mktStats"></dl>' +
     '<dl class="stats">' +
       '<div><dt>Participaciones</dt><dd>' + qtyf(qty) + '</dd></div>' +
       '<div><dt>Precio actual</dt><dd>' + pxf(a.price) + '</dd></div>' +
@@ -1935,7 +2426,8 @@ function brokerSection() {
     '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor</label>' +
     '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://nido-brokers.tu-cuenta.workers.dev"></div>' +
     '<div class="fld" style="margin-top:12px"><label class="lbl" for="px-key">Clave de acceso</label>' +
-    '<input class="field" id="px-key" name="key" type="password" autocomplete="off" spellcheck="false" value="' + esc(B.accessKey) + '" placeholder="Solo si tu worker la pide (secreto ACCESS_KEY)"></div>' +
+    '<div class="pw"><input class="field" id="px-key" name="key" type="password" autocomplete="off" spellcheck="false" value="' + esc(B.accessKey) + '" placeholder="Solo si tu worker la pide (secreto ACCESS_KEY)">' +
+    '<button type="button" class="iconbtn" data-action="key-eye" title="Mostrar clave" aria-label="Mostrar clave" aria-pressed="false"><svg class="i" viewBox="0 0 24 24"><path d="M2 12s3.7-6.5 10-6.5S22 12 22 12s-3.7 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/><path class="eye-slash" d="M3 3l18 18" style="display:none"/></svg></button></div></div>' +
     '<p class="help" id="pxMsg">' + esc(status) + '</p>' +
     '<button class="btn primary sm" id="proxyBtn" type="submit">' + (B.proxy ? 'Desconectar' : 'Conectar') + '</button>' +
     '</form></section>';
@@ -1953,11 +2445,20 @@ function t212Assets() {
     const cost = wi.totalCost != null ? wi.totalCost : (p.averagePricePaid != null && qty ? p.averagePricePaid * qty : null);
     const value = wi.currentValue != null ? wi.currentValue : (price != null && qty != null ? price * qty : null);
     if (!ins.ticker && !ins.name) return null;
+    // Curva en euros por participación: el cierre diario de Yahoo escalado para que
+    // el último día coincida con el valor actual de la posición (evita líos de divisa).
+    let hist = null;
+    const hs = ins.isin && T2H.by[ins.isin];
+    if (hs && hs.t && hs.t.length > 1 && value > 0 && qty > 0) {
+      const k = (value / qty) / hs.c[hs.c.length - 1];
+      if (isFinite(k) && k > 0) hist = { t: hs.t, c: hs.c.map(x => x * k) };
+    }
+    const since = typeof p.createdAt === 'string' && validDate(p.createdAt.slice(0, 10)) ? toEd(p.createdAt.slice(0, 10)) : null;
     return {
       id: 't212_' + (ins.ticker || ins.isin || Math.random().toString(36).slice(2, 8)),
       kind: 'asset', source: 't212', type: t212TypeOf(ins.name, ins.ticker), name: ins.name || ins.ticker,
       symbol: ins.ticker, isin: ins.isin || '', currency: ins.currency || cur,
-      price: price, prev: price, txs: [], hist: null,
+      price: price, prev: price, txs: [], hist, since,
       vQty: qty, vCost: cost, vValue: value, vPpl: wi.unrealizedProfitLoss
     };
   }).filter(Boolean);
@@ -1991,10 +2492,14 @@ function trAssets() {
     const value = okNum(p.value) ? Number(p.value) : cost;
     const ppl = okNum(p.ppl) ? Number(p.ppl) : null;
     const hh = p.isin ? TRH.by[p.isin] : null;
-    const hist = hh && hh.t && hh.t.length ? { t: hh.t, c: hh.c } : null;
+    let hist = hh && hh.t && hh.t.length ? { t: hh.t, c: hh.c } : null;
+    if (hist && hh.y && price > 0) { // cierres de Yahoo: se escalan a euros por participación (último día = precio actual)
+      const k = price / hh.c[hh.c.length - 1];
+      if (isFinite(k) && k > 0) hist = { t: hh.t, c: hh.c.map(x => x * k) };
+    }
     return {
       id: 'tr_' + (p.isin || Math.random().toString(36).slice(2, 8)),
-      kind: 'asset', source: 'tr', type: trTypeOf(p.instrumentType), name, symbol: p.isin || '', isin: p.isin || '',
+      kind: 'asset', source: 'tr', type: trTypeOf(p.instrumentType), name, issuer: [p.issuer, p.fullName].filter(Boolean).join(' '), symbol: p.isin || '', isin: p.isin || '',
       currency: cur, price: price, prev: price, txs: [], hist,
       vQty: qty, vCost: cost, vValue: value, vPpl: ppl
     };
@@ -2057,7 +2562,8 @@ function renderTrInner() {
   if (!STANDALONE) return '<p class="help">Disponible solo en la app instalable (web).</p>';
   if (!trLocal()) return '';
   if (TR.state === 'busy') return '<div class="loading-box" style="padding:12px 0"><span class="spin"></span>Conectando con Trade Republic...</div>';
-  if (TR.state === 'qr') return '<p class="help">Escanea este código QR con la app de Trade Republic para vincular.</p><div class="qr-box" id="qrBox"></div><button class="btn ghost sm" data-action="tr-check">Ya lo he escaneado</button>';
+  if (TR.state === 'loading') return '<div class="loading-box" role="status" style="padding:12px 0"><span class="spin"></span>Cargando tu cartera de Trade Republic…</div>';
+  if (TR.state === 'qr') return '<p class="help">Escanea este código QR con la app de Trade Republic para vincular.</p><p class="help">En el móvil verás «New web login attempt» con Chrome 122.0 y tu ciudad: es el servidor local de Nido en tu PC. Apruébalo en menos de 2 minutos.</p><div class="qr-box" id="qrBox"></div><button class="btn ghost sm" data-action="tr-check">Ya lo he escaneado</button>';
   if (TR.state === 'err') return '<p class="help err">' + esc(TR.err) + '</p><div class="card-actions"><button class="btn primary sm" data-action="tr-login">Vincular con QR</button><button class="btn ghost sm" data-action="tr-load">Reintentar lectura</button></div>';
   if (TR.state === 'ok' || TR.state === 'cached') {
     const warn = TR.err ? '<div class="banner-in warn" style="margin-bottom:10px"><span>' + esc(TR.err) + '</span><button class="btn sm ghost" data-action="tr-login">Vincular con QR</button></div>' : '';
@@ -2078,7 +2584,7 @@ function trHTML() {
       const qty = p.netSize != null ? qtyf(Number(p.netSize)) : '—';
       const invested = okNum(p.invested) ? Number(p.invested) : (p.averageBuyIn != null && p.netSize != null ? Number(p.averageBuyIn) * Number(p.netSize) : null);
       const ppl = okNum(p.ppl) ? Number(p.ppl) : null;
-      return '<li><div class="l"><strong>' + esc(name) + '</strong><small>' + (p.isin ? esc(p.isin) + ' · ' : '') + 'Invertido ' + eur(invested) + '</small></div><div class="r num">' + qty + '<small class="' + cls(ppl || 0) + '">' + (ppl != null ? seur(ppl) : '—') + '</small></div></li>';
+      return '<li><div class="l ll">' + logoBadge(p.isin, name, '--k-tr') + '<span style="min-width:0"><strong>' + esc(name) + '</strong><small>' + (p.isin ? esc(p.isin) + ' · ' : '') + 'Invertido ' + eur(invested) + '</small></span></div><div class="r num">' + qty + '<small class="' + cls(ppl || 0) + '">' + (ppl != null ? seur(ppl) : '—') + '</small></div></li>';
     }).join('') + '</ul>';
   } else h += '<p class="empty-small">Sin posiciones.</p>';
   const plans = TR.plans || [];
@@ -2089,7 +2595,7 @@ function trHTML() {
       const amount = trPlanAmount(p);
       const iv = (p.parameters && p.parameters.interval != null) ? p.parameters.interval : p.interval;
       const nx = trPlanNext(p);
-      return '<li><div class="l"><strong>' + esc(name) + (p.paused ? ' <span class="pill warn">En pausa</span>' : '') + '</strong><small>' + esc(trIntervalLabel(iv)) + (nx ? ' · próxima ' + datefs(nx) : '') + '</small></div><div class="r num">' + (amount != null ? eur(amount) : '—') + '</div></li>';
+      return '<li><div class="l ll">' + logoBadge(isin, name, '--k-tr') + '<span style="min-width:0"><strong>' + esc(name) + (p.paused ? ' <span class="pill warn">En pausa</span>' : '') + '</strong><small>' + esc(trIntervalLabel(iv)) + (nx ? ' · próxima ' + datefs(nx) : '') + '</small></span></div><div class="r num">' + (amount != null ? eur(amount) : '—') + '</div></li>';
     }).join('') + '</ul>';
   }
   return h;
@@ -2130,6 +2636,17 @@ const CHANGE = {};
 const inSheet = el => !!el.closest('#sheet');
 
 ACT.tab = el => { if (SH.open && inSheet(el)) closeSheet(); setTab(el.dataset.tab); };
+ACT['mkt-range'] = el => { MK.range = el.dataset.r; drawMarket(MK.id); };
+ACT['src-set'] = el => { UI.src = el.dataset.s; saveUI(); UI.histCache = null; H1.h = null; H1.loaded = false; render(); };
+ACT['key-eye'] = el => {
+  const inp = $('#px-key'); if (!inp) return;
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  el.setAttribute('aria-pressed', String(show));
+  el.title = el.ariaLabel = show ? 'Ocultar clave' : 'Mostrar clave';
+  el.setAttribute('aria-label', el.title);
+  const sl = el.querySelector('.eye-slash'); if (sl) sl.style.display = show ? '' : 'none';
+};
 ACT.range = el => { UI.range = +el.dataset.r; saveUI(); UI.histCache = null; render(); };
 ACT.filter = el => { UI.filter = el.dataset.k; saveUI(); render(); };
 ACT.add = () => openAdd(UI.tab === 'liquidez' ? 'cash' : 'inv');
@@ -2177,7 +2694,7 @@ ACT.settings = () => openSheet({ fn: shSettings, title: 'Ajustes' });
 ACT['demo-on'] = () => { S.demo = true; S.demoDocs = new Map(demoDocs().map(d => [d.id, d])); runPlans(true); if (SH.open) closeSheet(); UI.tab = 'resumen'; render(true); };
 ACT['demo-off'] = () => { S.demo = false; S.demoDocs = new Map(); if (SH.open) closeSheet(); if (S.needPlans) { S.needPlans = false; runPlans(); } render(true); };
 ACT['open-asset'] = el => { const id = el.dataset.id; const v = { fn: shAsset, args: [id], live: true, after: () => drawAssetMini(id), title: 'Activo' }; openSheet(v, SH.open && inSheet(el)); };
-ACT['open-broker'] = el => { const id = el.dataset.id; const v = { fn: shBroker, args: [id], title: 'Posición', after: () => drawBrokerMini(id) }; openSheet(v, SH.open && inSheet(el)); };
+ACT['open-broker'] = el => { const id = el.dataset.id; const v = { fn: shBroker, args: [id], title: 'Posición', after: () => drawMarket(id) }; openSheet(v, SH.open && inSheet(el)); };
 ACT['open-cash'] = el => { const id = el.dataset.id; const v = { fn: shCash, args: [id], live: true, after: () => drawCashMini(id), title: 'Cuenta' }; openSheet(v, SH.open && inSheet(el)); };
 ACT['edit-plan'] = el => { const v = { fn: shPlan, args: [{ planId: el.dataset.id }], title: 'Plan' }; openSheet(v, SH.open && inSheet(el)); };
 ACT['toggle-plan'] = el => {
@@ -2583,7 +3100,8 @@ function boot() {
   const saved = lsGet(LS_UI);
   if (saved) {
     if (TABS.includes(saved.tab)) UI.tab = saved.tab;
-    if ([30, 91, 182, 365].includes(saved.range)) UI.range = saved.range;
+    if ([1, 7, 30, 91, 182, 0, 365, -1].includes(saved.range)) UI.range = saved.range;
+    if (['all', 'tr', 't212', 'manual'].includes(saved.src)) UI.src = saved.src;
     if (saved.filter) UI.filter = saved.filter;
     if (saved.sort) UI.sort = saved.sort;
   }
@@ -2600,7 +3118,7 @@ function boot() {
   if (STANDALONE) {
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* sin persistencia */ }
   }
-  t212CacheLoad(); trCacheLoad(); trHistCacheLoad();
+  t212CacheLoad(); t212HistCacheLoad(); trCacheLoad(); trHistCacheLoad(); issCacheLoad();
   if (STANDALONE && !trLocal()) discardTR(); // sin URL local, los datos de Trade Republic se quedan fuera
   render();
   initStore(); initBrokers();
@@ -2621,6 +3139,6 @@ function boot() {
   setTimeout(() => { if (STANDALONE && !S.demo) autoRefreshNow(); }, 1500);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && (S.mode === 'db' || S.mode === 'local')) { runPlans(); renderTop(); if (STANDALONE && !S.demo) autoRefreshNow(); } });
 }
-window.__nido = { calcPos, cashCalc, planDates, history, priceOn, runPlans, S, D, model };
+window.__nido = { issuerLogoUrl, calcPos, cashCalc, planDates, history, history1d, priceOn, runPlans, S, D, model };
 boot();
 })();
