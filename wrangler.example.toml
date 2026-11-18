@@ -6,5 +6,5 @@
 # 3) npx wrangler deploy (desde la raíz del repositorio).
 # Si prefieres pegar el código en el panel (Quick Edit), este fichero no se usa.
 name = "nido-brokers-TU-CUENTA"
-main = "worker/precios.js"
+main = "worker/precios.ts"
 compatibility_date = "2025-01-01"

@@ -20,16 +20,25 @@
    Trade Republic NO se sirve desde aquí: usa un servidor local en tu PC
    (carpeta tr-server/) porque requiere un flujo QR con WebSocket y WAF (Puppeteer)
    que un Worker no puede hacer. Ver README. */
+/** Variables y secretos del Worker (panel de Cloudflare). */
+export interface Env {
+  ALLOWED_ORIGINS?: string;
+  T212_KEY?: string;
+  T212_SECRET?: string;
+  ACCESS_KEY?: string;
+}
+type Cors = Record<string, string>;
+
 const DEFAULT_ORIGINS = 'http://localhost:3000,http://127.0.0.1:3000';
 const T212 = 'https://live.trading212.com/api/v0';
 
 /* =========================================================
    Utilidades
    ========================================================= */
-function reply(obj, status, cors) {
+function reply(obj: unknown, status: number, cors: Cors) {
   return new Response(JSON.stringify(obj), { status, headers: Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }, cors) });
 }
-function raw(body, status, cors, headers) {
+function raw(body: BodyInit | null, status: number, cors: Cors, headers?: Record<string, string>) {
   return new Response(body, { status, headers: Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }, cors, headers || {}) });
 }
 
@@ -41,7 +50,7 @@ const T212_PATHS = {
   '/t212/positions': '/equity/positions',
   '/t212/history': '/equity/history/orders'
 };
-function t212Auth(env) {
+function t212Auth(env?: Env) {
   const key = env && env.T212_KEY;
   const secret = env && env.T212_SECRET;
   if (!key || !secret) return null;
@@ -50,7 +59,7 @@ function t212Auth(env) {
   for (const b of rawBytes) bin += String.fromCharCode(b);
   return 'Basic ' + btoa(bin);
 }
-async function t212(url, env, cors) {
+async function t212(url: URL, env: Env | undefined, cors: Cors) {
   const auth = t212Auth(env);
   if (!auth) return reply({ error: 'Trading 212 no está configurado', code: 't212_unconfigured' }, 200, cors);
   const path = T212_PATHS[url.pathname];
@@ -130,7 +139,7 @@ async function marketChart(url, cors) {
       if (!list.length) return reply({ error: 'Sin cotización para ese ISIN', code: 'market_not_found' }, 404, cors);
     }
     for (const q of list) {
-      const out = await yfChart(q.symbol, range);
+      const out: any = await yfChart(q.symbol, range);
       if (out) { if (q.name) out.name = q.name; return reply(out, 200, cors); }
     }
     return reply({ error: 'Sin histórico para ' + list[0].symbol, code: 'market_not_found' }, 404, cors);
@@ -150,7 +159,7 @@ function accessDenied(request, env) {
    Enrutador
    ========================================================= */
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env?: Env): Promise<Response> {
     const origins = String((env && env.ALLOWED_ORIGINS) || DEFAULT_ORIGINS).split(',').map(s => s.trim()).filter(Boolean);
     const origin = request.headers.get('Origin');
     const any = origins.includes('*');

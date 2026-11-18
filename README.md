@@ -51,32 +51,36 @@ The web version cannot talk directly to Trading 212 or Trade Republic: the brows
 ```
 src/
   page.html            Structure and styles (no doctype; Claude's publisher adds it)
-  app.js               All the logic: data, math, plans, charts, sheets, brokers
+  main.ts              All the logic: data, math, plans, charts, sheets, brokers
+  lib/                 Utilities (formatting, dates) and asset catalog
   web/
     manifest.webmanifest
     sw.js              Service worker: opens the app offline
     icons/             App icons
 worker/
-  precios.js           Broker server for Cloudflare Workers (Trading 212)
+  precios.ts           Broker server for Cloudflare Workers (Trading 212)
 tr-server/
-  server.mjs           Local Trade Republic server (Bun + trapi)
+  server.ts           Local Trade Republic server (Bun + trapi)
   package.json         Local server dependencies
 wrangler.example.toml  Optional template to deploy the worker from the CLI (copy to wrangler.toml with your name)
 config.json            Your broker server address (used by the web version)
 config.example.json    Template: copy to config.json and set your URL
-scripts/build.js       Generates dist/ and docs/
-test/run.js            Smoke tests with jsdom
+vite.config.ts        Vite build: generates docs/ (web), dist/ (Claude) and dist/worker.js
+tsconfig.json          TypeScript config
+test/run.ts            Smoke tests with jsdom
 docs/                  Generated web version (served by GitHub Pages)
 dist/                  Generated Claude version (git-ignored)
 ```
 
 ## 🛠️ Development
 
-Requires Node 18 or newer.
+Requires Node 22.18 or newer (TypeScript + Vite).
 
 ```bash
-npm install        # only for the tests (jsdom)
-npm run build      # generates dist/nido-claude.html and docs/
+npm install        # Vite, TypeScript and jsdom (tests)
+npm run dev        # dev server with hot reload at http://localhost:3000
+npm run typecheck  # tsc
+npm run build      # typecheck + generates docs/, dist/nido-claude.html and dist/worker.js
 npm test           # build + tests
 npm run serve      # serves docs/ at http://localhost:3000 and, if Bun is present, also the local Trade Republic server at :8788 (Ctrl+C stops both)
 ```
@@ -108,7 +112,7 @@ Data is stored on the device and reused offline. If you remove the server addres
 1. Create a free account at [dash.cloudflare.com](https://dash.cloudflare.com).
 2. Go to **Workers & Pages** → **Create** → **Create Worker**. Name it whatever you like (e.g. `nido-brokers`) and deploy it.
    *(CLI alternative: copy `wrangler.example.toml` to `wrangler.toml` with your Worker name and run `npx wrangler deploy` from the repo root. If you deploy by pasting the code in the dashboard, this file is not used).*
-3. Click **Edit code**, delete the sample code, paste the contents of `worker/precios.js` and click **Deploy**.
+3. Click **Edit code**, delete the sample code, paste the contents of `dist/worker.js` and click **Deploy**.
 4. In your Worker tab, open **Settings → Variables**:
    - Add the variable `ALLOWED_ORIGINS` with your comma-separated origins, e.g.:
      `https://YOUR-USER.github.io,http://localhost:3000,http://127.0.0.1:3000`
@@ -137,12 +141,12 @@ Data is stored on the device and reused offline. If you remove the server addres
    The first time, Puppeteer downloads Chromium (~200 MB). That is normal.
 3. Start the local server (together with the app, if you prefer: `npm run serve` from the root starts both and Ctrl+C stops them):
    ```bash
-   bun server.mjs
+   bun server.ts
    ```
    You will see `Servidor local de Trade Republic escuchando en http://localhost:8788/`.
    If you open the app from GitHub Pages instead of localhost, also start it with your allowed origin:
    ```bash
-   ALLOWED_ORIGINS=https://YOUR-USER.github.io bun server.mjs
+   ALLOWED_ORIGINS=https://YOUR-USER.github.io bun server.ts
    ```
 4. In the app: Settings → Trade Republic → type `http://localhost:8788` and **Save**.
 5. Tap **Pair with QR**, scan the code with the Trade Republic app and confirm. The app detects the connection on its own and loads the portfolio (the fallback button remains in case the polling does not start).
@@ -156,7 +160,7 @@ The session is saved in `~/.tr_api_cookies.json` and reused on subsequent starts
 - **"Origen no permitido"** (origin not allowed): add your domain to `ALLOWED_ORIGINS` in the Cloudflare Worker (Settings → Variables) or in the local Trade Republic server (environment variable), then redeploy/restart.
 - **"Trading 212 no está configurado"**: the `T212_KEY` and `T212_SECRET` secrets are missing in the Worker.
 - **"Clave de acceso incorrecta"** (wrong access key): check that the Worker's `ACCESS_KEY` secret and the **Access key** field in Settings match.
-- **"El servidor local de Trade Republic no responde"**: is it running? `cd tr-server && bun server.mjs`. It only works from the PC where it runs.
+- **"El servidor local de Trade Republic no responde"**: is it running? `cd tr-server && bun server.ts`. It only works from the PC where it runs.
 - **Expired Trade Republic session**: pair again with the QR (Settings → Trade Republic).
 - **429 (too many requests)**: Trading 212 rate-limits the API; wait a minute and retry.
 

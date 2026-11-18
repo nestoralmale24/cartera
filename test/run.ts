@@ -1,27 +1,27 @@
-'use strict';
 /* Pruebas de humo con jsdom: npm install && npm test
    1) Versión Claude abierta fuera de Claude (modo local) + cartera de ejemplo
    2) Versión Claude con base de datos simulada
    3) Versión web instalable (modo independiente), sin servidor de brokers
    4) Versión web con servidor de brokers simulado (Trading 212)
-   5) Servidor de brokers (worker/precios.js) con Trading 212 simulado */
-const fs = require('fs');
-const path = require('path');
-const assert = require('assert');
-const { JSDOM } = require('jsdom');
+   5) Servidor de brokers (worker/precios.ts) con Trading 212 simulado */
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert';
+import { JSDOM } from 'jsdom';
+import worker from '../worker/precios.ts';
 
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(import.meta.dirname, '..');
 const claudeHtml = fs.readFileSync(path.join(root, 'dist/nido-claude.html'), 'utf8');
 const webHtml = fs.readFileSync(path.join(root, 'docs/index.html'), 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-function open(html, opts = {}) {
+function open(html: string, opts: any = {}): { dom: JSDOM; w: any; d: any; errors: string[] } {
   const errors = [];
   const doc = opts.full ? html : '<!doctype html><html><head></head><body>' + html + '</body></html>';
   const dom = new JSDOM(doc, {
     runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://example.test/',
     beforeParse(w) {
-      w.matchMedia = q => ({ matches: /min-width:760px/.test(q), addListener() {}, removeListener() {} });
+      w.matchMedia = (q: string) => ({ matches: /min-width:760px/.test(q), addListener() {}, removeListener() {} }) as any;
       w.ResizeObserver = class { observe() {} disconnect() {} };
       w.scrollTo = () => {};
       w.addEventListener('error', e => errors.push(e.message + ' ' + (e.error && e.error.stack)));
@@ -32,8 +32,8 @@ function open(html, opts = {}) {
   });
   return { dom, w: dom.window, d: dom.window.document, errors };
 }
-const fire = (w, el, type) => el.dispatchEvent(new w.Event(type, { bubbles: true, cancelable: true }));
-const ok = (name, cond, extra) => { assert.ok(cond, name + (extra ? ' -> ' + extra : '')); console.log('  ok  ' + name); };
+const fire = (w: any, el: any, type: string) => el.dispatchEvent(new w.Event(type, { bubbles: true, cancelable: true }));
+const ok = (name: string, cond: any, extra?: string) => { assert.ok(cond, name + (extra ? ' -> ' + extra : '')); console.log('  ok  ' + name); };
 
 async function testLocalDemo() {
   console.log('1) Versión Claude en modo local + ejemplo');
@@ -227,9 +227,9 @@ async function testWebBrokers() {
   // Modo privado: el ojo difumina los valores.
   d.querySelector('#privacyBtn').click(); await sleep(30);
   ok('el modo privado se activa con un clic', d.documentElement.classList.contains('prv'));
-  ok('el difuminado cubre los KPI del reparto', Array.from(d.querySelectorAll('style')).some(s => /html\.prv \.kpis dd/.test(s.textContent)));
-  ok('el difuminado cubre las sublíneas de importes', Array.from(d.querySelectorAll('style')).some(s => /html\.prv \.subline/.test(s.textContent)));
-  ok('el difuminado es intenso y proporcional al tamaño', Array.from(d.querySelectorAll('style')).some(s => /html\.prv[\s\S]*?filter:blur\(\.5em\)/.test(s.textContent)));
+  ok('el difuminado cubre los KPI del reparto', Array.from<any>(d.querySelectorAll('style')).some(s => /html\.prv \.kpis dd/.test(s.textContent)));
+  ok('el difuminado cubre las sublíneas de importes', Array.from<any>(d.querySelectorAll('style')).some(s => /html\.prv \.subline/.test(s.textContent)));
+  ok('el difuminado es intenso y proporcional al tamaño', Array.from<any>(d.querySelectorAll('style')).some(s => /html\.prv[\s\S]*?filter:blur\(\.5em\)/.test(s.textContent)));
   ok('la preferencia de privacidad se guarda', JSON.parse(w.localStorage.getItem('cartera.privacy.v1')).p === true);
   ok('el ojo se tacha al ocultar los valores', d.querySelector('#prvSlash').style.display !== 'none');
   d.querySelector('#privacyBtn').click(); await sleep(30);
@@ -287,7 +287,7 @@ async function testWebBrokers() {
   ok('la pestaña Planes no ofrece crear planes manuales', !d.querySelector('#view [data-action="add-plan"]'));
   // Separación por tipos en Inversiones (el fondo es ETF, la acción es acción).
   d.querySelector('#topTabs [data-tab="inversiones"]').click(); await sleep(120);
-  const chipsTxt = Array.from(d.querySelectorAll('#view .chip')).map(c => c.textContent).join(',');
+  const chipsTxt = Array.from<any>(d.querySelectorAll('#view .chip')).map(c => c.textContent).join(',');
   ok('hay apartados por tipo', chipsTxt.includes('Acciones') && chipsTxt.includes('ETFs'), chipsTxt);
   d.querySelector('#view .chip[data-k="etf"]').click(); await sleep(60);
   ok('ETF filtra solo el fondo', /ETF Global/.test(d.querySelector('#view').textContent) && !/Apple Inc/.test(d.querySelector('#view').textContent), d.querySelector('#view').textContent.slice(0, 300));
@@ -303,7 +303,7 @@ async function testWebBrokers() {
   const btcLogo = d.querySelector('#view .row[data-id="tr_XF000BTC0017"] img.logo');
   ok('Bitcoin usa su icono de criptomoneda', !!btcLogo && /cryptocurrency-icons.*\/btc\.png/.test(btcLogo.getAttribute('src') || ''), btcLogo && btcLogo.outerHTML);
   const resTab = d.querySelector('[role="tab"][data-tab="resumen"]'); if (resTab) { resTab.click(); await sleep(80); }
-  const topRows = Array.from(d.querySelectorAll('#view .grid2 .panel:nth-child(2) .lb'));
+  const topRows = Array.from<any>(d.querySelectorAll('#view .grid2 .panel:nth-child(2) .lb'));
   ok('Mayores posiciones muestra badge con logo o iniciales en cada fila', topRows.length > 0 && topRows.every(b => !!b.querySelector('.badge')), String(topRows.length));
   const invTab = d.querySelector('[role="tab"][data-tab="inversiones"]'); if (invTab) { invTab.click(); await sleep(80); }
   // Gráficas con el histórico del broker: sparkline en la lista y mini gráfica en la ficha.
@@ -313,7 +313,7 @@ async function testWebBrokers() {
     trRow.click(); await sleep(80);
     ok('la ficha de Trade Republic dibuja la gráfica de mercado', !!d.querySelector('#mktChart svg'), (d.querySelector('#mktChart').textContent || '').slice(0, 60));
     ok('la ficha de la posición muestra el logotipo (no un cuadro blanco)', !!d.querySelector('#sheetBody img.logo[src]'), d.querySelector('#sheetBody .asset-head') && d.querySelector('#sheetBody .asset-head').innerHTML.slice(0, 200));
-    ok('la ficha ofrece 1D, 1S, 1M, 3M, 6M, 1A y Máx', Array.from(d.querySelectorAll('#mktTabs button')).map(b => b.textContent).join() === '1D,1S,1M,3M,6M,1A,Máx');
+    ok('la ficha ofrece 1D, 1S, 1M, 3M, 6M, 1A y Máx', Array.from<any>(d.querySelectorAll('#mktTabs button')).map(b => b.textContent).join() === '1D,1S,1M,3M,6M,1A,Máx');
     d.querySelector('#mktTabs [data-r="3m"]').click(); await sleep(40);
     ok('cambiar de periodo redibuja y marca la pestaña', d.querySelector('#mktTabs [data-r="3m"]').getAttribute('aria-selected') === 'true' && !!d.querySelector('#mktChart svg'));
     ok('el cambio del periodo se muestra en la ficha', /%/.test(d.querySelector('#mktSub').textContent), d.querySelector('#mktSub').textContent);
@@ -368,12 +368,10 @@ async function testWebBrokers() {
   w.close();
 }
 
-function resp(obj, status) { return { ok: (status || 200) < 400, status: status || 200, text: async () => JSON.stringify(obj), json: async () => obj }; }
+function resp(obj: any, status?: number): any { return { ok: (status || 200) < 400, status: status || 200, text: async () => JSON.stringify(obj), json: async () => obj }; }
 
 async function testWorker() {
-  console.log('5) Servidor de brokers (worker/precios.js)');
-  const mod = await import(require('url').pathToFileURL(path.join(root, 'worker/precios.js')).href);
-  const worker = mod.default;
+  console.log('5) Servidor de brokers (worker/precios.ts)');
   const seen = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => { seen.push({ url: String(url), init }); return new Response(JSON.stringify({ ok: true, ticker: 'AAPL' }), { status: 200 }); };
