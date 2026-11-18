@@ -99,10 +99,9 @@ html.prv .chosen small{
 }
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--glass);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--line)}
 .topbar-in{max-width:1180px;margin:0 auto;height:64px;display:flex;align-items:center;gap:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.brand{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"logo sync" "name sync";align-items:center;column-gap:10px;white-space:nowrap;color:var(--c-text)}
-.logo-na{grid-area:logo;height:28px;width:auto;display:block}
-.brand-name{grid-area:name;font-size:13px;font-weight:700;line-height:1.1;color:var(--c-accent);letter-spacing:0}
-.brand .sync{grid-area:sync}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em;white-space:nowrap;color:var(--c-text)}
+.mark{width:28px;height:28px;border-radius:9px;background:var(--na-void);display:grid;place-items:center;color:var(--c-brand);box-shadow:0 0 0 1px var(--c-border)}
+.mark svg{width:18px;height:18px;stroke-width:1.6}
 .sync{font-size:12px;color:var(--ink-3);font-weight:400;margin-left:2px}
 .sync.err{color:var(--loss)}
 .topbar .seg{margin:0 auto}
@@ -410,7 +409,7 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
 <div class="app">
   <header class="topbar">
     <div class="topbar-in">
-      <div class="brand"><svg class="logo-na" xmlns="http://www.w3.org/2000/svg" viewBox="30 70 346 160" role="img" aria-label="NA."><path fill="currentColor" fill-rule="evenodd" d="M50 90H85L140 167.6V90H170V210H135L80 132.4V210H50Z M220 90H280L310 210H280L275 190H225L220 210H190ZM242.5 120H257.5L270 170H230Z"/><rect x="322" y="176" width="34" height="34" rx="3" fill="var(--c-brand)"/></svg><span class="brand-name">Nido</span><span class="sync hide-m" id="sync"></span></div>
+      <div class="brand"><span class="mark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6.5" transform="rotate(-20 12 12)"/><ellipse cx="12" cy="12" rx="7" ry="5" transform="rotate(25 12 12)" opacity=".7"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg></span><span class="brand-name">Nido</span><span class="sync hide-m" id="sync"></span></div>
       <nav class="seg" id="topTabs" role="tablist" aria-label="Secciones">
         <button role="tab" data-action="tab" data-tab="resumen">Resumen</button>
         <button role="tab" data-action="tab" data-tab="inversiones">Inversiones</button>

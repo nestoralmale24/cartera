@@ -1,5 +1,5 @@
 /* Service worker de la versión web: permite abrir la app sin conexión.
-   El build sustituye 9a381eb07e por un hash del contenido para que cada versión nueva
+   El build sustituye 48594ce158 por un hash del contenido para que cada versión nueva
    reemplace la caché anterior. */
 const CACHE = 'nido-__VERSION__';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
