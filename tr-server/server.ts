@@ -6,7 +6,7 @@
    Uso:
      cd tr-server
      bun install          (o: npm run serve desde la raíz, que lo hace solo)
-     bun server.mjs
+     bun server.ts
 
    Endpoints (todos devuelven JSON y llevan CORS para localhost):
      GET  /            -> { ok:true, servicio:"nido-tr-local" }

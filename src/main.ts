@@ -1,144 +1,19 @@
-(function () {
-'use strict';
+import { $, $$, esc, DAY, pad, newId, clone, todayStr, toEd, fromEd, todayEd, daysInMonth, validDate, G, NF, NF0, NQ, NP, NC, DF, DFs, MYF, MINUS, okNum, eur, eur0, f, money, seur, pct, qtyf, pxf, compactEur, datef, datefs, cls, parseNum, round, sig, numIn, ago, lastLE, lsGet, lsSet, RM, STANDALONE, isMobileDevice, isDesk, svgI, IC } from './lib/util';
+import { TYPES, TYPE_ORDER, typeOf, C, CATALOG } from './lib/catalog';
 
-/* =========================================================
-   Utilidades
-   ========================================================= */
-const $ = (s, el = document) => el.querySelector(s);
-const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
-const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const DAY = 86400000;
-const pad = n => String(n).padStart(2, '0');
-const newId = p => p + '_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
-const clone = o => o == null ? o : JSON.parse(JSON.stringify(o));
-function todayStr() { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-function toEd(s) { const [y, m, d] = String(s).split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / DAY); }
-function fromEd(e) { const d = new Date(e * DAY); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
-const todayEd = () => toEd(todayStr());
-function daysInMonth(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
-function validDate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || '') && isFinite(toEd(s)); }
-
-const G = { useGrouping: 'always' };
-const NF = new Intl.NumberFormat('es-ES', Object.assign({ style: 'currency', currency: 'EUR' }, G));
-const NF0 = new Intl.NumberFormat('es-ES', Object.assign({ style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }, G));
-const NQ = new Intl.NumberFormat('es-ES', Object.assign({ maximumFractionDigits: 6 }, G));
-const NP = new Intl.NumberFormat('es-ES', Object.assign({ minimumFractionDigits: 2, maximumFractionDigits: 2 }, G));
-const NC = new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 });
-const DF = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-const DFs = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-const MYF = new Intl.DateTimeFormat('es-ES', { month: 'short', year: '2-digit', timeZone: 'UTC' });
-const MINUS = '−';
-const okNum = v => v != null && isFinite(v);
-function eur(v) { return okNum(v) ? NF.format(v).replace('-', MINUS) : '-'; }
-function eur0(v) { return okNum(v) ? NF0.format(v).replace('-', MINUS) : '-'; }
-// valor tal cual o guion si está vacío (para campos externos, p.ej. Trading 212)
-function f(v) { return (v == null || v === '') ? '—' : v; }
-// importe en euros si es número, o tal cual si viene como texto
-function money(v) { return okNum(v) ? eur(v) : f(v); }
-function seur(v) { return okNum(v) ? (v >= 0 ? '+' : MINUS) + NF.format(Math.abs(v)) : '-'; }
-function pct(v) { return okNum(v) ? (v >= 0 ? '+' : MINUS) + NP.format(Math.abs(v * 100)) + ' %' : '-'; }
-function qtyf(q) { return okNum(q) ? NQ.format(q) : '-'; }
-function pxf(v) {
-  if (!okNum(v)) return '-';
-  const d = Math.abs(v) < 1 ? 4 : 2;
-  return new Intl.NumberFormat('es-ES', Object.assign({ style: 'currency', currency: 'EUR', minimumFractionDigits: d, maximumFractionDigits: d }, G)).format(v);
+/** Error de un broker con código (y estado HTTP opcional) para mostrarlo en la interfaz. */
+class BrokerError extends Error {
+  code: string; status?: number;
+  constructor(msg: string, code: string, status?: number) { super(msg); this.code = code; this.status = status; }
 }
-function compactEur(v) { return NC.format(v) + ' €'; }
-function datef(s) { return validDate(s) ? DF.format(new Date(toEd(s) * DAY)) : '-'; }
-function datefs(s) { return validDate(s) ? DFs.format(new Date(toEd(s) * DAY)) : '-'; }
-function cls(v) { return v > 0.000001 ? 'up' : v < -0.000001 ? 'down' : 'muted'; }
-function parseNum(s) {
-  if (typeof s === 'number') return s;
-  s = String(s == null ? '' : s).trim().replace(/\s|€|%/g, '');
-  if (!s) return NaN;
-  if (s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
-  else if (s.includes(',')) s = s.replace(',', '.');
-  return Number(s);
-}
-function round(v, d) { const f = Math.pow(10, d); return Math.round(v * f) / f; }
-function sig(v) { if (!okNum(v)) return v; const a = Math.abs(v); return round(v, a >= 1000 ? 2 : a >= 1 ? 4 : 8); }
-function numIn(v, d = 2) { return okNum(v) ? String(round(v, d)).replace('.', ',') : ''; }
-function ago(ts) {
-  if (!ts) return '';
-  const m = Math.round((Date.now() - ts) / 60000);
-  if (m < 1) return 'ahora mismo';
-  if (m < 60) return 'hace ' + m + ' min';
-  const h = Math.round(m / 60);
-  if (h < 24) return 'hace ' + h + ' h';
-  const d = Math.round(h / 24);
-  return d === 1 ? 'hace 1 día' : 'hace ' + d + ' días';
-}
-function lastLE(arr, x) { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m] <= x) { r = m; lo = m + 1; } else hi = m - 1; } return r; }
-function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* almacenamiento no disponible */ } }
-const RM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
-const STANDALONE = !!window.NIDO_STANDALONE;
-/* Móvil o tableta (por dispositivo, no por ancho de ventana): ahí no se puede conectar Trade Republic, que necesita el servidor local del PC. */
-const isMobileDevice = () => /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent || '') || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform || '')) || (window.matchMedia ? window.matchMedia('(pointer:coarse)').matches && window.matchMedia('(hover:none)').matches : false);
-const isDesk = () => window.matchMedia ? window.matchMedia('(min-width:760px)').matches : true;
-
-const svgI = d => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
-const IC = {
-  close: svgI('<path d="M6 6l12 12M18 6L6 18"/>'),
-  back: svgI('<path d="M15 5l-7 7 7 7"/>'),
-  plus: svgI('<path d="M12 5v14M5 12h14"/>'),
-  edit: svgI('<path d="M4 20h4L19 9l-4-4L4 16z"/>'),
-  trash: svgI('<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>'),
-  ext: svgI('<path d="M14 5h5v5M19 5l-8 8M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4"/>')
-};
-
-/* =========================================================
-   Catálogo y tipos
-   ========================================================= */
-const TYPES = {
-  stock: { l: 'Acción', p: 'Acciones', k: '--k-stock' },
-  etf: { l: 'ETF', p: 'ETFs', k: '--k-etf' },
-  fund: { l: 'Fondo', p: 'Fondos', k: '--k-fund' },
-  crypto: { l: 'Cripto', p: 'Cripto', k: '--k-crypto' },
-  other: { l: 'Otro', p: 'Otros', k: '--k-other' }
-};
-const TYPE_ORDER = ['stock', 'etf', 'fund', 'crypto', 'other'];
-const typeOf = a => TYPES[a && a.type] ? a.type : 'other';
-const C = (symbol, name, type, currency, isin, exch) => ({ symbol, name, type, currency, isin, exch });
-const CATALOG = [
-  C('IWDA.AS', 'iShares Core MSCI World UCITS ETF (Acc)', 'etf', 'EUR', 'IE00B4L5Y983', 'Ámsterdam'),
-  C('EUNL.DE', 'iShares Core MSCI World UCITS ETF (Acc)', 'etf', 'EUR', 'IE00B4L5Y983', 'Xetra'),
-  C('VWCE.DE', 'Vanguard FTSE All-World UCITS ETF (Acc)', 'etf', 'EUR', 'IE00BK5BQT80', 'Xetra'),
-  C('SXR8.DE', 'iShares Core S&P 500 UCITS ETF (Acc)', 'etf', 'EUR', 'IE00B5BMR087', 'Xetra'),
-  C('VUSA.AS', 'Vanguard S&P 500 UCITS ETF (Dist)', 'etf', 'EUR', 'IE00B3XXRP09', 'Ámsterdam'),
-  C('EMIM.AS', 'iShares Core MSCI EM IMI UCITS ETF (Acc)', 'etf', 'EUR', 'IE00BKM4GZ66', 'Ámsterdam'),
-  C('0P00000WLG.F', 'Vanguard Global Stock Index Fund EUR Acc', 'fund', 'EUR', 'IE00B03HD191', 'Fondo'),
-  C('', 'Fidelity MSCI World Index Fund P-ACC-EUR', 'fund', 'EUR', 'IE00BYX5NX33', 'Fondo'),
-  C('', 'Vanguard U.S. 500 Stock Index Fund EUR Acc', 'fund', 'EUR', 'IE0032126645', 'Fondo'),
-  C('', 'Vanguard Emerging Markets Stock Index Fund EUR Acc', 'fund', 'EUR', 'IE0031786696', 'Fondo'),
-  C('', 'Amundi Index MSCI World AE-C', 'fund', 'EUR', 'LU0996182563', 'Fondo'),
-  C('', 'iShares Developed World Index Fund (IE) D Acc EUR', 'fund', 'EUR', 'IE00BD0NCM55', 'Fondo'),
-  C('AAPL', 'Apple', 'stock', 'USD', '', 'NASDAQ'),
-  C('MSFT', 'Microsoft', 'stock', 'USD', '', 'NASDAQ'),
-  C('NVDA', 'NVIDIA', 'stock', 'USD', '', 'NASDAQ'),
-  C('AMZN', 'Amazon', 'stock', 'USD', '', 'NASDAQ'),
-  C('GOOGL', 'Alphabet (clase A)', 'stock', 'USD', '', 'NASDAQ'),
-  C('META', 'Meta Platforms', 'stock', 'USD', '', 'NASDAQ'),
-  C('TSLA', 'Tesla', 'stock', 'USD', '', 'NASDAQ'),
-  C('SAN.MC', 'Banco Santander', 'stock', 'EUR', '', 'Madrid'),
-  C('BBVA.MC', 'BBVA', 'stock', 'EUR', '', 'Madrid'),
-  C('ITX.MC', 'Inditex', 'stock', 'EUR', '', 'Madrid'),
-  C('IBE.MC', 'Iberdrola', 'stock', 'EUR', '', 'Madrid'),
-  C('TEF.MC', 'Telefónica', 'stock', 'EUR', '', 'Madrid'),
-  C('REP.MC', 'Repsol', 'stock', 'EUR', '', 'Madrid'),
-  C('BTC-EUR', 'Bitcoin', 'crypto', 'EUR', '', 'Cripto'),
-  C('ETH-EUR', 'Ethereum', 'crypto', 'EUR', '', 'Cripto'),
-  C('SOL-EUR', 'Solana', 'crypto', 'EUR', '', 'Cripto'),
-  C('XRP-EUR', 'XRP', 'crypto', 'EUR', '', 'Cripto'),
-  C('ADA-EUR', 'Cardano', 'crypto', 'EUR', '', 'Cripto')
-];
+const brokerError = (msg: string, code: string, status?: number) => new BrokerError(msg, code, status);
 
 /* =========================================================
    Almacén: db por usuario (privado), con respaldo local
    ========================================================= */
 const S = {
   mode: 'loading', docs: new Map(), demo: false, demoDocs: new Map(),
-  uid: null, col: null, unsub: null, err: null, pendingIds: new Set(), retry: new Set(), diag: [], localReason: ''
+  uid: null, col: null, unsub: null, err: null, pendingIds: new Set(), retry: new Set(), diag: [], localReason: '', needPlans: false
 };
 const LS_CACHE = 'cartera.cache.v1', LS_LOCAL = 'cartera.local.v1', LS_UI = 'cartera.ui.v1';
 const WQ = new Map();
@@ -222,13 +97,13 @@ function startLocal(reason) {
   runPlans();
   scheduleRender();
 }
-let cacheT = 0;
+let cacheT: ReturnType<typeof setTimeout> | undefined;
 function cacheSave() {
   if (S.mode !== 'db') return;
   clearTimeout(cacheT);
   cacheT = setTimeout(() => lsSet(LS_CACHE, { uid: S.uid, docs: Array.from(S.docs.values()) }), 700);
 }
-function put(doc, quiet) {
+function put(doc, quiet?) {
   doc.updatedAt = Date.now();
   D().set(doc.id, doc);
   persist(doc.id);
@@ -298,7 +173,7 @@ function fxOn(cur, e) {
   if (h && h.t && h.t.length) { const i = lastLE(h.t, e); if (i >= 0) return h.c[i]; }
   return fxNow(cur);
 }
-function unitFx(a, e) { const f = e == null ? fxNow(curOf(a)) : fxOn(curOf(a), e); return mulOf(a) * (f || 1); }
+function unitFx(a, e?) { const f = e == null ? fxNow(curOf(a)) : fxOn(curOf(a), e); return mulOf(a) * (f || 1); }
 function priceEUR(a) { return a.price > 0 ? a.price * unitFx(a) : null; }
 function prevEUR(a) { return a.prev > 0 ? a.prev * unitFx(a) : null; }
 
@@ -319,7 +194,7 @@ function applyTx(st, t) {
   } else { st.qty += t.qty; st.cost += t.qty * t.price + fees; }
   if (t.est) st.estN++;
 }
-function calcPos(a, skipTxId) {
+function calcPos(a, skipTxId?): any {
   const st = { qty: 0, cost: 0, realized: 0, pend: 0, pendN: 0, estN: 0 };
   for (const t of txsOf(a)) if (t.id !== skipTxId) applyTx(st, t);
   const px = priceEUR(a), pv = prevEUR(a);
@@ -335,7 +210,7 @@ function dedupeSort(arr) {
   const seen = new Set();
   return (arr || []).filter(m => m && validDate(m.date) && !seen.has(m.id) && seen.add(m.id)).sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
 }
-function cashCalc(c, endE) {
+function cashCalc(c, endE?) {
   if (endE == null) endE = todayEd();
   const moves = dedupeSort(c.moves);
   const rates = (c.rates || []).filter(r => validDate(r.from)).map(r => ({ e: toEd(r.from), apy: +r.apy || 0 })).sort((a, b) => a.e - b.e);
@@ -392,7 +267,7 @@ const SRC_LABEL = { all: 'Todo', tr: 'Trade Republic', t212: 'Trading 212', manu
 function srcEff() { const l = srcList(); return l.length > 1 && l.includes(UI.src) ? UI.src : 'all'; }
 let MEMO_SRC = null;
 /* model(): toda la cartera. model('tr' | 't212' | 'manual'): solo esa cuenta (memoizado sobre el modelo completo). */
-function model(src) {
+function model(src?) {
   if (src && src !== 'all') {
     const base = model();
     if (MEMO_SRC && MEMO_SRC.base === base && MEMO_SRC.src === src) return MEMO_SRC.m;
@@ -450,7 +325,7 @@ function buildModel(src) {
     totalGain: invPnl + realized + interest, alloc, any: !!(assets.length || accounts.length || plans.length || pos.length)
   };
 }
-function history(R, src) {
+function history(R, src?) {
   src = src || srcEff();
   const inS = k => src === 'all' || src === k;
   const end = todayEd();
@@ -587,7 +462,7 @@ function setTxPrice(t, px) {
   delete t.pending; delete t.est;
 }
 function planTx(asset, plan, ds, id) {
-  const tx = { id, side: 'buy', date: ds, amount: round(+plan.amount, 2), fees: round(+plan.fees || 0, 2), plan: plan.id, auto: true, note: 'Plan mensual' };
+  const tx: any = { id, side: 'buy', date: ds, amount: round(+plan.amount, 2), fees: round(+plan.fees || 0, 2), plan: plan.id, auto: true, note: 'Plan mensual' };
   const p = priceOn(asset, ds);
   if (p && p.price > 0) { setTxPrice(tx, p.price); if (!p.exact) tx.est = true; }
   else { tx.pending = true; tx.price = null; tx.qty = null; }
@@ -604,7 +479,7 @@ function refineTxs(a) {
   }
   return n;
 }
-function runPlans(silent) {
+function runPlans(silent?) {
   if (!(S.demo || S.mode === 'db' || S.mode === 'local')) return 0;
   const t = todayEd();
   const changed = new Map();
@@ -689,7 +564,7 @@ async function initBrokers() {
 }
 
 /* ---------- Conexión genérica al servidor de brokers ---------- */
-async function brokerFetch(path, opts) {
+async function brokerFetch(path, opts?) {
   opts = opts || {};
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 25000);
@@ -700,14 +575,14 @@ async function brokerFetch(path, opts) {
     r = await fetch(B.proxy + path, Object.assign({ signal: ctrl ? ctrl.signal : undefined }, opts.init || {}, { headers }));
     txt = await r.text();
   } catch (e) {
-    const er = new Error('sin respuesta'); er.code = 'broker_unreachable'; throw er;
+    throw brokerError('sin respuesta', 'broker_unreachable');
   } finally { clearTimeout(timer); }
   let j = null;
   try { j = JSON.parse(txt); } catch (e) { /* no JSON */ }
   if (!r.ok) {
-    const er = new Error((j && j.error) || 'error ' + r.status); er.code = (j && j.code) || 'broker_http'; er.status = r.status; throw er;
+    throw brokerError((j && j.error) || 'error ' + r.status, (j && j.code) || 'broker_http', r.status);
   }
-  if (j && j.code) { const er = new Error(j.error); er.code = j.code; er.status = r.status; throw er; }
+  if (j && j.code) { throw brokerError(j.error, j.code, r.status); }
   return j;
 }
 function brokerErr(e) {
@@ -729,7 +604,7 @@ function t212CacheLoad() {
 function t212CacheSave() {
   lsSet(LS_T212, { account: T.account, positions: T.positions, at: Date.now() });
 }
-async function loadT212(silent) {
+async function loadT212(silent?) {
   if (AR.t212) return;
   if (!brokersReady()) { T.err = 'Primero configura el servidor de brokers en Ajustes.'; T.state = 'err'; renderBrokers(); return; }
   if (T.nextRetry && Date.now() < T.nextRetry) return; // esperando tras un 429
@@ -767,21 +642,21 @@ function trCacheLoad() {
   if (u && typeof u.url === 'string') TR.localUrl = u.url;
 }
 function trCacheSave() { lsSet(LS_TR, { positions: TR.positions, cash: TR.cash, plans: TR.plans, interest: TR.interest, at: Date.now() }); }
-async function trFetch(path, opts) {
+async function trFetch(path, opts?) {
   const base = trLocal();
-  if (!base) { const er = new Error('Configura la dirección del servidor local de Trade Republic en Ajustes.'); er.code = 'tr_no_url'; throw er; }
+  if (!base) { throw brokerError('Configura la dirección del servidor local de Trade Republic en Ajustes.', 'tr_no_url'); }
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 30000);
   let r, txt;
   try {
     r = await fetch(base + path, Object.assign({ signal: ctrl ? ctrl.signal : undefined }, opts && opts.init || {}));
     txt = await r.text();
-  } catch (e) { const er = new Error('El servidor local de Trade Republic no responde.'); er.code = 'tr_unreachable'; throw er; }
+  } catch (e) { throw brokerError('El servidor local de Trade Republic no responde.', 'tr_unreachable'); }
   finally { clearTimeout(timer); }
   let j = null;
   try { j = JSON.parse(txt); } catch (e) { j = null; }
-  if (!r.ok) { const er = new Error((j && j.error) || 'error ' + r.status); er.code = (j && j.code) || 'tr_http'; er.status = r.status; throw er; }
-  if (j && j.code) { const er = new Error(j.error); er.code = j.code; er.status = r.status; throw er; }
+  if (!r.ok) { throw brokerError((j && j.error) || 'error ' + r.status, (j && j.code) || 'tr_http', r.status); }
+  if (j && j.code) { throw brokerError(j.error, j.code, r.status); }
   return j;
 }
 function trErr(e) {
@@ -1098,7 +973,7 @@ const FUND_ISIN = {
   IE00BK5BQT80: 'vanguard.com', IE00B3RBWM25: 'vanguard.com', IE00BFMXXD54: 'vanguard.com', IE00B3XXRP09: 'vanguard.com',
   IE00BJ0KDQ92: 'dws.com', LU1681043599: 'amundietf.com', IE00B6YX5C33: 'ssga.com', IE00B3YCGJ38: 'invesco.com'
 };
-const FUND_HINT = [[/^core (msci|s&p|euro|dax|ftse)/i, 'ishares.com'], [/ftse all-world/i, 'vanguard.com']];
+const FUND_HINT: [RegExp, string][] = [[/^core (msci|s&p|euro|dax|ftse)/i, 'ishares.com'], [/ftse all-world/i, 'vanguard.com']];
 function fundHintLogo(isin, name) {
   let dom = FUND_ISIN[isin];
   if (!dom) for (const h of FUND_HINT) if (h[0].test(String(name || ''))) { dom = h[1]; break; }
@@ -1169,7 +1044,7 @@ function applyLogos() {
 function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function demoDocs() {
   const t = todayEd(); const rnd = mulberry(11);
-  const mk = (p0, drift, vol, weekends) => {
+  const mk = (p0, drift, vol, weekends?) => {
     const T = [], Cc = []; let p = p0;
     for (let e = t - 372; e <= t; e++) {
       const wd = new Date(e * DAY).getUTCDay();
@@ -1180,7 +1055,7 @@ function demoDocs() {
   };
   const A = (id, type, name, symbol, currency, hist) => ({ id, kind: 'asset', type, name, symbol, currency, hist, price: hist.c[hist.c.length - 1], prev: hist.c[hist.c.length - 2], priceAt: Date.now(), txs: [], createdAt: Date.now() });
   const fx = { USD: 0.92 };
-  const buy = (a, ago, qty, fees, side) => {
+  const buy = (a, ago, qty, fees, side?) => {
     const ds = fromEd(t - ago); const i = lastLE(a.hist.t, t - ago);
     const price = sig(a.hist.c[Math.max(0, i)] * (a.currency === 'USD' ? fx.USD : 1));
     a.txs.push({ id: newId('t'), side: side || 'buy', date: ds, qty, price, fees, amount: round(side === 'sell' ? qty * price - fees : qty * price + fees, 2) });
@@ -1213,12 +1088,12 @@ const LS_AUTOREFRESH = 'cartera.autoRefresh.v1';
 const LS_THEME = 'cartera.theme.v1';
 const LS_PRIVACY = 'cartera.privacy.v1';
 const LS_LOGOS = 'cartera.logos.v1';
-const LOGOS = { map: {}, pending: new Set(), wait: new Set(), noWd: new Set() };
+const LOGOS: { map: Record<string, any>; pending: Set<string>; wait: Set<string>; noWd: Set<string>; cool?: Record<string, number> } = { map: {}, pending: new Set(), wait: new Set(), noWd: new Set() };
 /* Fondos y ETF: Wikidata casi nunca tiene su ISIN, así que se usa el logo del emisor (iShares, Vanguard...)
    deducido del nombre del instrumento que devuelve el servidor de precios. */
 const LS_ISS = 'cartera.issuer.v1';
 const ISS = { by: {}, tried: {}, busy: false };
-const ISSUERS = [
+const ISSUERS: [RegExp, string][] = [
   [/ishares|blackrock/i, 'ishares.com'], [/vanguard/i, 'vanguard.com'], [/xtrackers|\bdws\b/i, 'dws.com'],
   [/invesco/i, 'invesco.com'], [/spdr|state street/i, 'ssga.com'], [/amundi|lyxor/i, 'amundietf.com'],
   [/wisdomtree/i, 'wisdomtree.eu'], [/vaneck/i, 'vaneck.com'], [/\bubs\b/i, 'ubs.com'], [/hsbc/i, 'hsbc.com'],
@@ -1269,7 +1144,7 @@ function scheduleRender() {
   renderQueued = true;
   requestAnimationFrame(() => { renderQueued = false; render(); refreshOpenSheet(); });
 }
-function render(anim) {
+function render(anim?) {
   MEMO = null;
   renderTop(); renderBanner();
   const v = $('#view');
@@ -1614,7 +1489,7 @@ async function history1d() {
     if (R.s && R.s.unit === 's' && R.s.c.length >= 2 && p.a.price > 0) ser.push({ p, s: R.s });
   }
   if (!ser.length) return null;
-  const set = new Set();
+  const set = new Set<number>();
   for (const x of ser) for (const t of x.s.t) set.add(t);
   const ts = Array.from(set).sort((a, b) => a - b), n = ts.length;
   if (n < 2) return null;
@@ -1787,10 +1662,10 @@ function brokerAsset(id) { return t212Assets().find(x => x.id === id) || trAsset
 function mkFetch(a, r) {
   const q = '/market/chart?range=' + MK_SRV[r] + '&isin=' + encodeURIComponent(a.isin);
   if (a.source === 't212') {
-    if (!brokersReady()) { const e = new Error('sin servidor'); e.code = 'no_server'; throw e; }
+    if (!brokersReady()) { throw brokerError('sin servidor', 'no_server'); }
     return brokerFetch(q);
   }
-  if (!trLocal()) { const e = new Error('sin servidor'); e.code = 'no_server'; throw e; }
+  if (!trLocal()) { throw brokerError('sin servidor', 'no_server'); }
   return trFetch(q);
 }
 /* Por qué falló una consulta de mercado, en palabras del usuario. */
@@ -2001,7 +1876,7 @@ function spring(from, to, v0, opt, onUpdate, onDone) {
   raf = requestAnimationFrame(step);
   return { stop() { stopped = true; cancelAnimationFrame(raf); } };
 }
-const project = (v, r) => { r = r || 0.998; return (v / 1000) * r / (1 - r); };
+const project = (v, r?) => { r = r || 0.998; return (v / 1000) * r / (1 - r); };
 const rubber = (o, d) => (o * d * 0.55) / (d + 0.55 * o);
 function sheetDim() { const el = $('#sheet'); return isDesk() ? el.offsetWidth + 24 : el.offsetHeight + 12; }
 function setSheetPos(p) {
@@ -2011,11 +1886,11 @@ function setSheetPos(p) {
   const dim = sheetDim() || 1;
   $('#scrim').style.opacity = String(Math.max(0, Math.min(1, 1 - p / dim)));
 }
-function animateSheet(to, v0, opt, done) {
+function animateSheet(to, v0, opt, done?) {
   if (SH.anim) SH.anim.stop();
   SH.anim = spring(SH.pos, to, v0, opt, setSheetPos, done);
 }
-function openSheet(view, push) {
+function openSheet(view, push?) {
   if (!SH.open) {
     SH.stack = [view];
     SH.trigger = document.activeElement;
@@ -2047,7 +1922,7 @@ function paintSheet(focus) {
   applyLogos();
 }
 function sheetBack() { if (SH.stack.length > 1) { SH.stack.pop(); paintSheet(true); } else closeSheet(); }
-function closeSheet(v0) {
+function closeSheet(v0?) {
   if (!SH.open) return;
   SH.open = false;
   const done = () => {
@@ -2058,7 +1933,7 @@ function closeSheet(v0) {
   if (RM.matches) { if (SH.anim) SH.anim.stop(); done(); return; }
   animateSheet(sheetDim(), v0 || 0, { response: 0.34, damping: 1 }, done);
 }
-function refreshOpenSheet(force) {
+function refreshOpenSheet(force?) {
   if (!SH.open) return;
   const v = SH.stack[SH.stack.length - 1]; if (!v || (!v.live && !force)) return;
   const ae = document.activeElement;
@@ -2102,8 +1977,8 @@ function initDrag() {
 /* =========================================================
    Aviso flotante con deshacer
    ========================================================= */
-let toastT = 0;
-function toast(msg, action) {
+let toastT: any = 0;
+function toast(msg, action?) {
   const t = $('#toast'); clearTimeout(toastT);
   t.innerHTML = '<span>' + esc(msg) + '</span>' + (action ? '<button type="button" id="toastBtn">' + esc(action.label) + '</button>' : '');
   t.classList.toggle('solo', !action); t.hidden = false;
@@ -2631,10 +2506,10 @@ function shSettings() {
 /* =========================================================
    Acciones
    ========================================================= */
-const ACT = {};
-const FORM = {};
-const INPUT = {};
-const CHANGE = {};
+const ACT: Record<string, (...a: any[]) => any> = {};
+const FORM: Record<string, (...a: any[]) => any> = {};
+const INPUT: Record<string, (...a: any[]) => any> = {};
+const CHANGE: Record<string, (...a: any[]) => any> = {};
 const inSheet = el => !!el.closest('#sheet');
 
 ACT.tab = el => { if (SH.open && inSheet(el)) closeSheet(); setTab(el.dataset.tab); };
@@ -2840,7 +2715,7 @@ FORM.proxy = async f => {
   const raw = f.elements.url.value.trim();
   const key = (f.elements.key ? f.elements.key.value : '').trim();
   const msg = f.querySelector('#pxMsg');
-  const say = (t, err) => { if (msg) { msg.textContent = t; msg.classList.toggle('err', !!err); } };
+  const say = (t, err?) => { if (msg) { msg.textContent = t; msg.classList.toggle('err', !!err); } };
   const btn = f.querySelector('#proxyBtn');
   if (btn) btn.disabled = true;
   // Pulsó Desconectar (la dirección sigue guardada en el campo).
@@ -2913,7 +2788,7 @@ FORM.manual = f => {
   if (!name) return ferr(f, 'manErr', 'Ponle un nombre.');
   const price = parseNum(el.price.value);
   const symbol = el.symbol.value.trim().toUpperCase();
-  const draft = { name, type: el.type.value, symbol, isin: el.isin.value.trim().toUpperCase(), currency: 'EUR', price: price > 0 ? price : null, curCheck: !!symbol };
+  const draft: any = { name, type: el.type.value, symbol, isin: el.isin.value.trim().toUpperCase(), currency: 'EUR', price: price > 0 ? price : null, curCheck: !!symbol };
   if (draft.price) draft.manualAt = Date.now();
   openSheet({ fn: shTx, args: [{ draft }], title: 'Operación' }, true);
 };
@@ -3059,32 +2934,32 @@ CHANGE.plan = f => updatePlanPreview(f);
    ========================================================= */
 function bindGlobal() {
   document.addEventListener('click', e => {
-    if (!e.target.closest('.rate-wrap')) {
+    if (!(e.target as any).closest('.rate-wrap')) {
       const rm = $('#rateMenu'); if (rm && !rm.hidden) rm.hidden = true;
     }
-    const el = e.target.closest('[data-action]'); if (!el) return;
+    const el = (e.target as any).closest('[data-action]'); if (!el) return;
     const fn = ACT[el.dataset.action]; if (!fn) return;
     if (el.tagName === 'A') return;
     e.preventDefault(); fn(el, e);
   });
   // Si un logo no carga, se quita y quedan las letras de la insignia.
   document.addEventListener('error', e => {
-    const t = e.target;
+    const t = e.target as any;
     if (t && t.tagName === 'IMG' && t.classList && t.classList.contains('logo')) t.remove();
   }, true);
   document.addEventListener('submit', e => {
-    const f = e.target.closest('form[data-form]'); if (!f) return;
+    const f = (e.target as any).closest('form[data-form]'); if (!f) return;
     e.preventDefault();
     const fn = FORM[f.dataset.form]; if (fn) fn(f, e);
   });
   document.addEventListener('input', e => {
-    const f = e.target.closest && e.target.closest('form[data-form]');
-    if (f && INPUT[f.dataset.form]) INPUT[f.dataset.form](f, e.target);
+    const f = (e.target as any).closest && (e.target as any).closest('form[data-form]');
+    if (f && INPUT[f.dataset.form]) INPUT[f.dataset.form](f, (e.target as any));
   });
   document.addEventListener('change', e => {
-    if (e.target.id === 'sortSel') { UI.sort = e.target.value; saveUI(); render(); return; }
-    const f = e.target.closest && e.target.closest('form[data-form]');
-    if (f && CHANGE[f.dataset.form]) CHANGE[f.dataset.form](f, e.target);
+    if ((e.target as any).id === 'sortSel') { UI.sort = (e.target as any).value; saveUI(); render(); return; }
+    const f = (e.target as any).closest && (e.target as any).closest('form[data-form]');
+    if (f && CHANGE[f.dataset.form]) CHANGE[f.dataset.form](f, (e.target as any));
   });
   $('#scrim').addEventListener('click', () => closeSheet());
   document.addEventListener('keydown', e => {
@@ -3093,7 +2968,7 @@ function bindGlobal() {
       if (rm && !rm.hidden) { rm.hidden = true; e.preventDefault(); return; }
       if (SH.open) { e.preventDefault(); sheetBack(); return; }
     }
-    const t = e.target;
+    const t = (e.target as any);
     if ((e.key === 'Enter' || e.key === ' ') && t && t.getAttribute && t.getAttribute('role') === 'button' && t.dataset.action) { e.preventDefault(); t.click(); }
   });
   window.addEventListener('resize', () => { if (SH.open) { if (SH.anim) SH.anim.stop(); setSheetPos(0); } });
@@ -3143,4 +3018,3 @@ function boot() {
 }
 window.__nido = { issuerLogoUrl, calcPos, cashCalc, planDates, history, history1d, priceOn, runPlans, S, D, model };
 boot();
-})();

@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Servidor local que hace de puente con Trade Republic (no oficial) para Nido. Usa trapi (Bun) para el flujo QR de login y sirve el portfolio en solo lectura.",
   "scripts": {
-    "start": "bun server.mjs"
+    "start": "bun server.ts"
   },
   "dependencies": {
     "trapi": "github:NightOwl07/trade-republic-api"

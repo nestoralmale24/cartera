@@ -1,18 +1,17 @@
-'use strict';
 /* Orquestador de desarrollo.
    Arranca a la vez:
      - la app estática (docs/ en http://localhost:3000, con npx serve)
      - el servidor local de Trade Republic (tr-server/ en http://localhost:8788, con Bun)
    Al parar (Ctrl+C) se cierran los dos. Si Bun no está instalado (o falla la
    instalación de dependencias), la app arranca igualmente y se avisa. */
-const { spawn, execSync, spawnSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { spawn, execSync, spawnSync, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(import.meta.dirname, '..');
 
 function has(cmd) {
-  try { execSync('"' + cmd + '" --version', { stdio: 'ignore', shell: true }); return true; }
+  try { execSync('"' + cmd + '" --version', { stdio: 'ignore' }); return true; }
   catch (e) { return false; }
 }
 
@@ -23,7 +22,7 @@ function bunCmd() {
   if (process.platform === 'win32' && process.env.USERPROFILE) {
     const p = path.join(process.env.USERPROFILE, '.bun', 'bin', 'bun.exe');
     if (fs.existsSync(p)) {
-      try { execSync('"' + p + '" --version', { stdio: 'ignore', shell: true }); return p; }
+      try { execSync('"' + p + '" --version', { stdio: 'ignore' }); return p; }
       catch (e) { /* está pero no funciona */ }
     }
   }
@@ -51,7 +50,7 @@ function shutdown(code) {
 }
 
 function run(label, cmd, args, cwd) {
-  const base = { cwd, stdio: 'inherit' };
+  const base = { cwd, stdio: 'inherit' as const };
   let p;
   if (process.platform === 'win32') {
     // Un solo string con shell:true evita el aviso DEP0190 de Node en Windows.
@@ -104,7 +103,7 @@ if (bun) {
     }
   }
   if (fs.existsSync(path.join(trDir, 'node_modules', 'trapi'))) {
-    run('trade-republic', bun, ['server.mjs'], trDir);
+    run('trade-republic', bun, ['server.ts'], trDir);
   } else {
     console.log('⚠️  Trade Republic no se arrancará (faltan sus dependencias).');
   }
