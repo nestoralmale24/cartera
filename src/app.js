@@ -73,6 +73,8 @@ function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* almacenamiento no disponible */ } }
 const RM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 const STANDALONE = !!window.NIDO_STANDALONE;
+/* Móvil o tableta (por dispositivo, no por ancho de ventana): ahí no se puede conectar Trade Republic, que necesita el servidor local del PC. */
+const isMobileDevice = () => /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent || '') || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform || '')) || (window.matchMedia ? window.matchMedia('(pointer:coarse)').matches && window.matchMedia('(hover:none)').matches : false);
 const isDesk = () => window.matchMedia ? window.matchMedia('(min-width:760px)').matches : true;
 
 const svgI = d => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
@@ -2552,7 +2554,7 @@ function renderT212Inner() {
   return '<button class="btn primary sm" data-action="t212-load">Conectar y ver cuenta</button>';
 }
 function trSection() {
-  if (!STANDALONE) return '';
+  if (!STANDALONE || isMobileDevice()) return ''; // Trade Republic solo se conecta desde el PC
   return '<section class="sh-sec"><h3>Trade Republic</h3>' +
     '<form class="form" data-form="trurl" novalidate><input class="field" id="tr-url" name="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(TR.localUrl) + '" placeholder="http://localhost:8788">' +
     '<button class="btn primary sm" id="trBtn" type="submit">' + (trLocal() ? 'Quitar' : 'Guardar') + '</button>' +

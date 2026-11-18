@@ -153,6 +153,17 @@ async function testWebBrokers() {
   ok('lee config.json', calls.some(u => u.endsWith('config.json')));
   d.querySelector('[data-action="settings"]').click(); await sleep(60);
   ok('Ajustes muestra el servidor', d.querySelector('#px-url').value === 'https://brokers.test');
+  // En móvil no se ofrece conectar Trade Republic (solo en PC).
+  ok('en PC Ajustes ofrece conectar Trade Republic', !!d.querySelector('#tr-url'));
+  Object.defineProperty(w.navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148', configurable: true });
+  d.querySelector('[data-action="sheet-close"]').click(); await sleep(350);
+  d.querySelector('[data-action="settings"]').click(); await sleep(80);
+  ok('en móvil Ajustes no muestra Trade Republic', !d.querySelector('#tr-url') && !d.querySelector('#trBody'));
+  ok('en móvil sigue el servidor de brokers (Trading 212)', !!d.querySelector('#px-url'));
+  Object.defineProperty(w.navigator, 'userAgent', { value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0', configurable: true });
+  d.querySelector('[data-action="sheet-close"]').click(); await sleep(350);
+  d.querySelector('[data-action="settings"]').click(); await sleep(80);
+  ok('al volver a PC reaparece Trade Republic', !!d.querySelector('#tr-url'));
   ok('Ajustes ya no tiene copia/restaurar', !d.querySelector('#exportTxt') && !d.querySelector('#importTxt'));
   ok('Ajustes ya no tiene diagnóstico', !d.querySelector('#diagTxt'));
   ok('el estado global dice No conectado aún', d.querySelector('#brokerState').textContent.trim() === 'No conectado');
