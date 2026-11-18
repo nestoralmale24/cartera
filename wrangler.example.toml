@@ -5,6 +5,6 @@
 #    con tus orígenes y crea los SECRETOS T212_KEY, T212_SECRET y ACCESS_KEY.
 # 3) npx wrangler deploy (desde la raíz del repositorio).
 # Si prefieres pegar el código en el panel (Quick Edit), este fichero no se usa.
-name = "cartera-brokers-TU-CUENTA"
+name = "nido-brokers-TU-CUENTA"
 main = "worker/precios.js"
 compatibility_date = "2025-01-01"

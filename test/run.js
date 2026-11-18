@@ -11,7 +11,7 @@ const assert = require('assert');
 const { JSDOM } = require('jsdom');
 
 const root = path.resolve(__dirname, '..');
-const claudeHtml = fs.readFileSync(path.join(root, 'dist/cartera-claude.html'), 'utf8');
+const claudeHtml = fs.readFileSync(path.join(root, 'dist/nido-claude.html'), 'utf8');
 const webHtml = fs.readFileSync(path.join(root, 'docs/index.html'), 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -41,7 +41,7 @@ async function testLocalDemo() {
   await sleep(200);
   ok('muestra el estado vacío', !!d.querySelector('.empty h2'));
   d.querySelector('[data-action="demo-on"]').click(); await sleep(100);
-  const M = w.__cartera.model();
+  const M = w.__nido.model();
   ok('el ejemplo tiene patrimonio', M.net > 0, String(M.net));
   ok('dibuja el gráfico', !!d.querySelector('#mainChart svg'));
   for (const t of ['inversiones', 'liquidez', 'planes', 'resumen']) { d.querySelector('#topTabs [data-tab="' + t + '"]').click(); await sleep(40); }
@@ -60,7 +60,7 @@ async function testLocalDemo() {
   cf.elements.name.value = 'Cuenta'; cf.elements.apy.value = '2'; cf.elements.bal.value = '10000';
   cf.elements.date.value = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
   fire(w, cf, 'submit'); await sleep(600);
-  const M2 = w.__cartera.model();
+  const M2 = w.__nido.model();
   ok('interés de 10.000 € al 2 % TAE en un año ≈ 200 €', Math.abs(M2.interest - 200) < 1.5, M2.interest.toFixed(2));
   ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
   w.close();
@@ -79,7 +79,7 @@ async function testDbMock() {
   };
   const { w, d, errors } = open(claudeHtml, { claude });
   await sleep(300);
-  ok('conecta con la base de datos', w.__cartera.S.mode === 'db');
+  ok('conecta con la base de datos', w.__nido.S.mode === 'db');
   // La versión de Claude no muestra la sección de brokers (solo la web instalable).
   ok('sin errores de JavaScript', errors.length === 0, errors.join('\n'));
   w.close();
@@ -89,7 +89,7 @@ async function testWeb() {
   console.log('3) Versión web instalable');
   const { w, d, errors } = open(webHtml, { full: true });
   await sleep(200);
-  ok('modo independiente', w.__cartera.S.mode === 'local');
+  ok('modo independiente', w.__nido.S.mode === 'local');
   ok('enlaza el manifiesto', !!d.querySelector('link[rel="manifest"]'));
   ok('ya no hay botón de precios (Yahoo)', !d.querySelector('#refreshBtn'));
   ok('aviso de datos en el dispositivo', /este dispositivo/.test(d.querySelector('#banner').textContent));
@@ -109,7 +109,7 @@ async function testWebBrokers() {
   const fetchMock = async (url, init) => {
     url = String(url); calls.push(url);
     if (url.endsWith('config.json')) return resp({ brokerProxy: 'https://brokers.test' });
-    if (url === 'https://brokers.test/') return resp({ ok: true, servicio: 'cartera-brokers' });
+    if (url === 'https://brokers.test/') return resp({ ok: true, servicio: 'nido-brokers' });
     if (url === 'https://brokers.test/t212/account') return (init && init.headers && init.headers['X-Access'] === 'topsecret') ? resp(t212Account) : resp({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401);
     if (url === 'https://brokers.test/t212/positions') return (init && init.headers && init.headers['X-Access'] === 'topsecret') ? resp(t212Positions) : resp({ error: 'Falta la cabecera X-Access con la clave de acceso.', code: 'access_denied' }, 401);
     // Trade Republic usa un servidor local aparte.
@@ -162,7 +162,7 @@ async function testWebBrokers() {
   ok('el estado global pasa a Conectado con Trading 212', d.querySelector('#brokerState').textContent.trim() === 'Conectado');
   ok('el punto de estado es verde', d.querySelector('#brokerDot').style.background === 'var(--gain)');
   // El dashboard debe incluir el valor del broker.
-  const M = w.__cartera.model();
+  const M = w.__nido.model();
   ok('el patrimonio incluye Trading 212', M.pos.some(p => p.broker && p.a.source === 't212' && p.value > 0), JSON.stringify(M.pos.map(p => p.a.name)));
   ok('el reparto incluye Trading 212', M.alloc.some(r => r.l === 'Trading 212' && r.v > 0));
   // La liquidez de los brokers suma al total.
@@ -205,7 +205,7 @@ async function testWebBrokers() {
   const trCache = JSON.parse(w.localStorage.getItem('cartera.tr.v1'));
   ok('conecta Trade Republic y guarda posiciones', trCache.positions.length === 2 && trCache.positions[0].name === 'ETF Global', JSON.stringify(trCache.positions.map(p => p.name)));
   ok('guarda los planes de ahorro', trCache.plans.length === 2);
-  const MT = w.__cartera.model();
+  const MT = w.__nido.model();
   ok('el patrimonio incluye Trade Republic con P/L', MT.pos.some(p => p.broker && p.a.source === 'tr' && p.pnl === 25), JSON.stringify(MT.pos.filter(p => p.a.source === 'tr')));
   ok('Bitcoin tiene P/L (CoinGecko para cripto)', MT.pos.some(p => p.broker && p.a.source === 'tr' && p.a.isin === 'XF000BTC0017' && p.pnl === 100), JSON.stringify(MT.pos.filter(p => p.a.source === 'tr' && p.a.isin === 'XF000BTC0017')));
   ok('la liquidez de Trade Republic también suma', MT.trCash === 100.5 && MT.cashTotal === 1100.5, String(MT.cashTotal));
@@ -217,7 +217,7 @@ async function testWebBrokers() {
   const btcHist = trhCache.by && trhCache.by['XF000BTC0017'];
   ok('guarda el histórico de Trade Republic', !!etfHist && Array.isArray(etfHist.c) && etfHist.c.length === 3, trhCache.by && JSON.stringify(Object.keys(trhCache.by)));
   ok('guarda el histórico de Bitcoin (CoinGecko)', !!btcHist && Array.isArray(btcHist.c) && btcHist.c.length === 3);
-  const HB = w.__cartera.history(365);
+  const HB = w.__nido.history(365);
   ok('el histórico del patrimonio incluye a los brokers', !!HB && HB.val[HB.val.length - 1] > 3000, HB && String(HB.val.slice(-3)));
   // La pestaña Planes muestra los planes de Trade Republic ponderando el intervalo.
   d.querySelector('[data-action="sheet-close"]').click(); await sleep(300);
@@ -254,7 +254,7 @@ async function testWebBrokers() {
   fire(w, d.querySelector('form[data-form="proxy"]'), 'submit'); await sleep(80);
   ok('al desconectar se borran los datos de Trading 212', d.querySelector('#t212Body').textContent.trim() === '' && d.querySelector('#t212Sec').hidden === true, d.querySelector('#t212Body').textContent.slice(0, 120));
   ok('se borra la caché guardada de Trading 212', w.localStorage.getItem('cartera.t212.v1') === null);
-  ok('Trading 212 sale del patrimonio', !w.__cartera.model().pos.some(p => p.a.source === 't212'), JSON.stringify(w.__cartera.model().pos.map(p => p.a.name)));
+  ok('Trading 212 sale del patrimonio', !w.__nido.model().pos.some(p => p.a.source === 't212'), JSON.stringify(w.__nido.model().pos.map(p => p.a.name)));
   ok('el botón vuelve a decir Conectar', d.querySelector('#proxyBtn').textContent === 'Conectar');
   ok('el estado global sigue Conectado por Trade Republic', d.querySelector('#brokerState').textContent.trim() === 'Conectado');
   // Reconectar en un solo clic: pon la dirección y envía.
@@ -267,7 +267,7 @@ async function testWebBrokers() {
   const trUrlForm = d.querySelector('form[data-form="trurl"]');
   fire(w, trUrlForm, 'submit'); await sleep(80);
   ok('al quitar el servidor local se borran los datos de Trade Republic', d.querySelector('#trBody').textContent.trim() === '' && !/ETF Global/.test(d.querySelector('#trBody').textContent), d.querySelector('#trBody').textContent.slice(0, 120));
-  ok('Trade Republic sale del patrimonio', !w.__cartera.model().pos.some(p => p.a.source === 'tr'), JSON.stringify(w.__cartera.model().pos.map(p => p.a.name)));
+  ok('Trade Republic sale del patrimonio', !w.__nido.model().pos.some(p => p.a.source === 'tr'), JSON.stringify(w.__nido.model().pos.map(p => p.a.name)));
   ok('se borra la caché de Trade Republic', w.localStorage.getItem('cartera.tr.v1') === null && w.localStorage.getItem('cartera.tr.hist.v1') === null);
   ok('el botón de Trade Republic vuelve a decir Guardar', d.querySelector('#trBtn').textContent === 'Guardar');
   ok('el campo de dirección de Trade Republic queda vacío', d.querySelector('#tr-url').value === '');
@@ -294,10 +294,10 @@ async function testWorker() {
     let r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: ORIGIN } }), {});
     ok('sin orígenes configurados rechaza con pista', r.status === 403 && JSON.parse(await r.text()).code === 'origin_denied');
     r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: 'http://localhost:3000' } }), {});
-    ok('permite el desarrollo local sin configurar', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
+    ok('permite el desarrollo local sin configurar', r.status === 200 && JSON.parse(await r.text()).servicio === 'nido-brokers');
     // Con la variable configurada, se permite al dominio indicado.
     r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
-    ok('con ALLOWED_ORIGINS responde con el servicio', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
+    ok('con ALLOWED_ORIGINS responde con el servicio', r.status === 200 && JSON.parse(await r.text()).servicio === 'nido-brokers');
     r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });
     ok('sin claves devuelve error claro', r.status === 200 && JSON.parse(await r.text()).code === 't212_unconfigured');
     r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN, T212_KEY: 'k', T212_SECRET: 's' });
@@ -315,7 +315,7 @@ async function testWorker() {
     r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: ORIGIN, 'X-Access': 'secreto' } }), { ALLOWED_ORIGINS: ORIGIN, ACCESS_KEY: 'secreto', T212_KEY: 'k', T212_SECRET: 's' });
     ok('con la clave correcta reenvía a Trading 212', r.status === 200 && seen.some(x => x.url.includes('account/summary')));
     r = await worker.fetch(new Request('https://w.test/', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN, ACCESS_KEY: 'secreto' });
-    ok('la raíz del worker sigue abierta sin clave (salud)', r.status === 200 && JSON.parse(await r.text()).servicio === 'cartera-brokers');
+    ok('la raíz del worker sigue abierta sin clave (salud)', r.status === 200 && JSON.parse(await r.text()).servicio === 'nido-brokers');
     r = await worker.fetch(new Request('https://w.test/t212/account', { headers: { Origin: 'https://otra-web.example' } }), { ALLOWED_ORIGINS: ORIGIN, T212_KEY: 'k', T212_SECRET: 's' });
     ok('rechaza otras webs', r.status === 403);
     r = await worker.fetch(new Request('https://w.test/tr/login', { headers: { Origin: ORIGIN } }), { ALLOWED_ORIGINS: ORIGIN });

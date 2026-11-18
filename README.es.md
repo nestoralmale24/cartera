@@ -1,4 +1,4 @@
-# Cartera
+# Nido
 
 **Tu panel personal de patrimonio** — acciones, ETFs, fondos, cripto y liquidez remunerada, con planes mensuales que se apuntan solos.
 
@@ -76,7 +76,7 @@ Requiere Node 18 o superior.
 
 ```bash
 npm install        # solo para las pruebas (jsdom)
-npm run build      # genera dist/cartera-claude.html y docs/
+npm run build      # genera dist/nido-claude.html y docs/
 npm test           # build + pruebas
 npm run serve      # arranca docs/ en http://localhost:3000 y, si hay Bun, también el servidor local de Trade Republic en :8788 (Ctrl+C para los dos)
 ```
@@ -86,7 +86,7 @@ Edita siempre `src/` y vuelve a ejecutar `npm run build`. No edites `docs/` a ma
 ## 🌐 Publicar la web e instalarla en el iPad
 
 1. En GitHub: Settings → Pages → Build and deployment → Source: "Deploy from a branch", rama `main`, carpeta `/docs`. Guarda.
-2. En un par de minutos estará en `https://TU-USUARIO.github.io/cartera/`. En el plan gratuito de GitHub, Pages requiere que el repositorio sea público. El código no contiene datos personales: tus posiciones se quedan en cada dispositivo.
+2. En un par de minutos estará en `https://TU-USUARIO.github.io/nido/`. En el plan gratuito de GitHub, Pages requiere que el repositorio sea público. El código no contiene datos personales: tus posiciones se quedan en cada dispositivo.
 3. En el iPad, abre esa dirección en Safari → botón Compartir → "Añadir a pantalla de inicio". En iPadOS 26 deja activado "Abrir como app web".
 4. Ábrela desde el icono. Funciona a pantalla completa y sin conexión.
 
@@ -106,7 +106,7 @@ Los datos se guardan en el dispositivo y se reutilizan sin conexión. Si quitas 
 ### 1. Trading 212 (API oficial)
 
 1. Crea una cuenta gratuita en [dash.cloudflare.com](https://dash.cloudflare.com).
-2. Entra en **Workers & Pages** → **Create** → **Create Worker**. Llámalo como quieras (ej. `cartera-brokers`) y despliégalo.
+2. Entra en **Workers & Pages** → **Create** → **Create Worker**. Llámalo como quieras (ej. `nido-brokers`) y despliégalo.
    *(Alternativa por línea de comandos: copia `wrangler.example.toml` a `wrangler.toml` con el nombre de tu Worker y ejecuta `npx wrangler deploy` desde la raíz. Si despliegas pegando el código en el panel, este fichero no se usa).*
 3. Pulsa **Edit code**, borra el código de ejemplo, pega el contenido de `worker/precios.js` y pulsa **Deploy**.
 4. En la pestaña de tu Worker, abre **Settings → Variables**:
@@ -115,7 +115,7 @@ Los datos se guardan en el dispositivo y se reutilizan sin conexión. Si quitas 
      Sin esta variable solo funciona desde tu propio PC en desarrollo.
    - En **Secrets**, añade `T212_KEY` y `T212_SECRET` con tu API Key y tu API Secret (se generan en Trading 212: app/web → Ajustes → API Beta; solo cuentas **Invest** e **ISA**, no CFD ni SIPP).
    - *(Recomendado)* En **Secrets**, añade también `ACCESS_KEY` con una frase larga y aleatoria (p. ej. la que te genere tu gestor de contraseñas). La app te la pedirá en su campo **Clave de acceso** y sin ella el Worker responderá **401**: aunque alguien averigüe la URL de tu Worker, no podrá leer tu cuenta.
-5. Copia la dirección del Worker, del tipo `https://cartera-brokers.TU-CUENTA.workers.dev`. Si la abres en el navegador debe responder `{"ok":true,"servicio":"cartera-brokers"}`.
+5. Copia la dirección del Worker, del tipo `https://nido-brokers.TU-CUENTA.workers.dev`. Si la abres en el navegador debe responder `{"ok":true,"servicio":"nido-brokers"}`.
 6. Dile a la app dónde está el Worker:
    - **Para todos tus dispositivos**: copia `config.example.json` a `config.json`, pon tu dirección, ejecuta `npm run build` y haz push. Si el repositorio es público, esa URL quedará visible (inocuo si defines `ACCESS_KEY`); si prefieres no publicarla, usa la opción de Ajustes de cada dispositivo; o
    - **Solo para este dispositivo**: en la app, Ajustes → Servidor de brokers → pega la dirección (y tu **Clave de acceso**, si definiste `ACCESS_KEY`) → **Conectar**.
@@ -162,7 +162,7 @@ La sesión se guarda en `~/.tr_api_cookies.json` y se reutiliza en siguientes ar
 
 ## 🎨 Actualizar la versión de Claude
 
-`dist/cartera-claude.html` es el fichero que se publica como artefacto con las capacidades `db` y `user` (datos privados por usuario en `data/users/<id>`). La lectura de brokers es exclusiva de la versión web. Para republicarlo, pídeselo a Claude en Cowork indicando la URL del artefacto, así se mantiene el mismo enlace y tus datos.
+`dist/nido-claude.html` es el fichero que se publica como artefacto con las capacidades `db` y `user` (datos privados por usuario en `data/users/<id>`). La lectura de brokers es exclusiva de la versión web. Para republicarlo, pídeselo a Claude en Cowork indicando la URL del artefacto, así se mantiene el mismo enlace y tus datos.
 
 ## 🗃️ Modelo de datos
 

@@ -1,4 +1,4 @@
-/* Servidor local de Trade Republic para Cartera.
+/* Servidor local de Trade Republic para Nido.
    Corre con Bun. Hace de puente con Trade Republic (NO oficial) usando la
    librería "trapi": gestiona el login por QR (incluido el WAF de AWS con
    Puppeteer que ese flujo requiere) y sirve el portfolio en SOLO LECTURA.
@@ -9,7 +9,7 @@
      bun server.mjs
 
    Endpoints (todos devuelven JSON y llevan CORS para localhost):
-     GET  /            -> { ok:true, servicio:"cartera-tr-local" }
+     GET  /            -> { ok:true, servicio:"nido-tr-local" }
      POST /login       -> inicia el flujo QR. El QR se obtiene con GET /qr.
      GET  /qr          -> { ok:true, qrPayload, status }  (payload actual para pintar)
      GET  /status      -> { ok:true, status:"pending"|"connected" }
@@ -382,7 +382,7 @@ const server = Bun.serve({
 
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
-    if (url.pathname === "/") return json(origin, { ok: true, servicio: "cartera-tr-local" });
+    if (url.pathname === "/") return json(origin, { ok: true, servicio: "nido-tr-local" });
     if (url.pathname === "/login" && req.method === "POST") {
       startLogin();
       return json(origin, { ok: true, status: "qr" });

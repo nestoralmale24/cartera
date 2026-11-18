@@ -1,7 +1,7 @@
 /* Service worker de la versión web: permite abrir la app sin conexión.
    El build sustituye __VERSION__ por un hash del contenido para que cada versión nueva
    reemplace la caché anterior. */
-const CACHE = 'cartera-__VERSION__';
+const CACHE = 'nido-__VERSION__';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -11,7 +11,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k.startsWith('cartera-') && k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => (k.startsWith('nido-') || k.startsWith('cartera-')) && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

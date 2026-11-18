@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "cartera-tr-server",
+      "name": "nido-tr-server",
       "dependencies": {
         "trapi": "github:NightOwl07/trade-republic-api",
       },

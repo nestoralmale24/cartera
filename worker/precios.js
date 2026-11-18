@@ -1,4 +1,4 @@
-/* Servidor de brokers para la versión web de Cartera.
+/* Servidor de brokers para la versión web de Nido.
    Se despliega gratis en Cloudflare Workers. Reenvía consultas de SOLO LECTURA a
    Trading 212 (cuenta, posiciones, historial) y añade las cabeceras CORS que el
    navegador necesita. No guarda nada.
@@ -100,7 +100,7 @@ export default {
     if (!allowed) return reply({ error: 'Origen no permitido: ' + origin + '. Añádelo a la variable ALLOWED_ORIGINS de este Worker, separado por comas.', code: 'origin_denied' }, 403, cors);
 
     const url = new URL(request.url);
-    if (url.pathname === '/') return reply({ ok: true, servicio: 'cartera-brokers' }, 200, cors);
+    if (url.pathname === '/') return reply({ ok: true, servicio: 'nido-brokers' }, 200, cors);
 
     // Trading 212 (solo lectura)
     if (url.pathname.startsWith('/t212/')) {

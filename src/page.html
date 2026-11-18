@@ -1,4 +1,4 @@
-<title>Cartera</title>
+<title>Nido</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,8 +79,8 @@ html.prv .chosen small{
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--glass);backdrop-filter:blur(20px) saturate(170%);-webkit-backdrop-filter:blur(20px) saturate(170%);border-bottom:1px solid var(--line)}
 .topbar-in{max-width:1180px;margin:0 auto;height:60px;display:flex;align-items:center;gap:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:-.01em;white-space:nowrap}
-.mark{width:26px;height:26px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--on-accent)}
-.mark svg{width:16px;height:16px;stroke-width:2.2}
+.mark{width:26px;height:26px;border-radius:8px;background:#1c1917;display:grid;place-items:center;color:#f2b24c}
+.mark svg{width:18px;height:18px;stroke-width:1.6}
 .sync{font-size:12px;color:var(--ink-3);font-weight:400;margin-left:2px}
 .sync.err{color:var(--loss)}
 .topbar .seg{margin:0 auto}
@@ -377,7 +377,7 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
 <div class="app">
   <header class="topbar">
     <div class="topbar-in">
-      <div class="brand"><span class="mark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 16l5-5 4 3 7-8"/></svg></span><span>Cartera</span><span class="sync hide-m" id="sync"></span></div>
+      <div class="brand"><span class="mark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6.5" transform="rotate(-20 12 12)"/><ellipse cx="12" cy="12" rx="7" ry="5" transform="rotate(25 12 12)" opacity=".7"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg></span><span>Nido</span><span class="sync hide-m" id="sync"></span></div>
       <nav class="seg" id="topTabs" role="tablist" aria-label="Secciones">
         <button role="tab" data-action="tab" data-tab="resumen">Resumen</button>
         <button role="tab" data-action="tab" data-tab="inversiones">Inversiones</button>

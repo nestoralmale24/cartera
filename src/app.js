@@ -71,7 +71,7 @@ function lastLE(arr, x) { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= 
 function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* almacenamiento no disponible */ } }
 const RM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
-const STANDALONE = !!window.CARTERA_STANDALONE;
+const STANDALONE = !!window.NIDO_STANDALONE;
 const isDesk = () => window.matchMedia ? window.matchMedia('(min-width:760px)').matches : true;
 
 const svgI = d => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
@@ -990,7 +990,7 @@ async function logoLookup(isin) {
   try {
     const q = 'SELECT ?logo WHERE { ?item wdt:P946 "' + key + '" . ?item wdt:P154 ?logo . } LIMIT 6';
     const u = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(q);
-    const r = await fetch(u, { headers: { 'User-Agent': 'cartera/1.0 (local)' } });
+    const r = await fetch(u, { headers: { 'User-Agent': 'nido/1.0 (local)' } });
     const j = await r.json();
     const logos = ((j && j.results && j.results.bindings) || []).map(b => b.logo && b.logo.value).filter(Boolean);
     const pick = logos.find(l => !/white/i.test(l)) || logos[0];
@@ -1933,7 +1933,7 @@ function brokerSection() {
   const status = B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') + (own && own.url ? ', guardado en este dispositivo.' : ', configurado en el repositorio.') : 'Sin servidor configurado. Pega la dirección y pulsa Conectar.';
   return '<section class="sh-sec"><h3>Servidor de brokers</h3>' +
     '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor</label>' +
-    '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://cartera-brokers.tu-cuenta.workers.dev"></div>' +
+    '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://nido-brokers.tu-cuenta.workers.dev"></div>' +
     '<div class="fld" style="margin-top:12px"><label class="lbl" for="px-key">Clave de acceso</label>' +
     '<input class="field" id="px-key" name="key" type="password" autocomplete="off" spellcheck="false" value="' + esc(B.accessKey) + '" placeholder="Solo si tu worker la pide (secreto ACCESS_KEY)"></div>' +
     '<p class="help" id="pxMsg">' + esc(status) + '</p>' +
@@ -2347,7 +2347,7 @@ FORM.proxy = async f => {
   B.accessKey = key;
   try {
     const j = await brokerFetch('/');
-    if (!j || j.servicio !== 'cartera-brokers') throw new Error('no es el servidor de brokers');
+    if (!j || !['nido-brokers', 'cartera-brokers'].includes(j.servicio)) throw new Error('no es el servidor de brokers');
     lsSet(LS_PROXY, { url, key });
     diag('servidor de brokers conectado');
     say('Conectado. Cargando tu cuenta de Trading 212...');
@@ -2622,6 +2622,6 @@ function boot() {
   setTimeout(() => { if (STANDALONE && !S.demo) autoRefreshNow(); }, 1500);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && (S.mode === 'db' || S.mode === 'local')) { runPlans(); renderTop(); if (STANDALONE && !S.demo) autoRefreshNow(); } });
 }
-window.__cartera = { calcPos, cashCalc, planDates, history, priceOn, runPlans, S, D, model };
+window.__nido = { calcPos, cashCalc, planDates, history, priceOn, runPlans, S, D, model };
 boot();
 })();

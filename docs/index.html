@@ -7,13 +7,13 @@
 <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Cartera">
+<meta name="apple-mobile-web-app-title" content="Nido">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>Cartera</title>
+<title>Nido</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -94,8 +94,8 @@ html.prv .chosen small{
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--glass);backdrop-filter:blur(20px) saturate(170%);-webkit-backdrop-filter:blur(20px) saturate(170%);border-bottom:1px solid var(--line)}
 .topbar-in{max-width:1180px;margin:0 auto;height:60px;display:flex;align-items:center;gap:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:-.01em;white-space:nowrap}
-.mark{width:26px;height:26px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--on-accent)}
-.mark svg{width:16px;height:16px;stroke-width:2.2}
+.mark{width:26px;height:26px;border-radius:8px;background:#1c1917;display:grid;place-items:center;color:#f2b24c}
+.mark svg{width:18px;height:18px;stroke-width:1.6}
 .sync{font-size:12px;color:var(--ink-3);font-weight:400;margin-left:2px}
 .sync.err{color:var(--loss)}
 .topbar .seg{margin:0 auto}
@@ -393,7 +393,7 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
 <div class="app">
   <header class="topbar">
     <div class="topbar-in">
-      <div class="brand"><span class="mark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 16l5-5 4 3 7-8"/></svg></span><span>Cartera</span><span class="sync hide-m" id="sync"></span></div>
+      <div class="brand"><span class="mark" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6.5" transform="rotate(-20 12 12)"/><ellipse cx="12" cy="12" rx="7" ry="5" transform="rotate(25 12 12)" opacity=".7"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/></svg></span><span>Nido</span><span class="sync hide-m" id="sync"></span></div>
       <nav class="seg" id="topTabs" role="tablist" aria-label="Secciones">
         <button role="tab" data-action="tab" data-tab="resumen">Resumen</button>
         <button role="tab" data-action="tab" data-tab="inversiones">Inversiones</button>
@@ -435,7 +435,7 @@ select.field{appearance:none;-webkit-appearance:none;background-image:linear-gra
 </section>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script>window.CARTERA_STANDALONE = true;</script>
+<script>window.NIDO_STANDALONE = true;</script>
 <script>
 (function () {
 'use strict';
@@ -510,7 +510,7 @@ function lastLE(arr, x) { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= 
 function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* almacenamiento no disponible */ } }
 const RM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
-const STANDALONE = !!window.CARTERA_STANDALONE;
+const STANDALONE = !!window.NIDO_STANDALONE;
 const isDesk = () => window.matchMedia ? window.matchMedia('(min-width:760px)').matches : true;
 
 const svgI = d => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
@@ -1429,7 +1429,7 @@ async function logoLookup(isin) {
   try {
     const q = 'SELECT ?logo WHERE { ?item wdt:P946 "' + key + '" . ?item wdt:P154 ?logo . } LIMIT 6';
     const u = 'https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(q);
-    const r = await fetch(u, { headers: { 'User-Agent': 'cartera/1.0 (local)' } });
+    const r = await fetch(u, { headers: { 'User-Agent': 'nido/1.0 (local)' } });
     const j = await r.json();
     const logos = ((j && j.results && j.results.bindings) || []).map(b => b.logo && b.logo.value).filter(Boolean);
     const pick = logos.find(l => !/white/i.test(l)) || logos[0];
@@ -2372,7 +2372,7 @@ function brokerSection() {
   const status = B.proxy ? 'Conectado a ' + B.proxy.replace(/^https?:\/\//, '') + (own && own.url ? ', guardado en este dispositivo.' : ', configurado en el repositorio.') : 'Sin servidor configurado. Pega la dirección y pulsa Conectar.';
   return '<section class="sh-sec"><h3>Servidor de brokers</h3>' +
     '<form class="form" data-form="proxy" novalidate><div class="fld"><label class="lbl" for="px-url">Dirección del servidor</label>' +
-    '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://cartera-brokers.tu-cuenta.workers.dev"></div>' +
+    '<input class="field" id="px-url" name="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(B.proxy) + '" placeholder="https://nido-brokers.tu-cuenta.workers.dev"></div>' +
     '<div class="fld" style="margin-top:12px"><label class="lbl" for="px-key">Clave de acceso</label>' +
     '<input class="field" id="px-key" name="key" type="password" autocomplete="off" spellcheck="false" value="' + esc(B.accessKey) + '" placeholder="Solo si tu worker la pide (secreto ACCESS_KEY)"></div>' +
     '<p class="help" id="pxMsg">' + esc(status) + '</p>' +
@@ -2786,7 +2786,7 @@ FORM.proxy = async f => {
   B.accessKey = key;
   try {
     const j = await brokerFetch('/');
-    if (!j || j.servicio !== 'cartera-brokers') throw new Error('no es el servidor de brokers');
+    if (!j || !['nido-brokers', 'cartera-brokers'].includes(j.servicio)) throw new Error('no es el servidor de brokers');
     lsSet(LS_PROXY, { url, key });
     diag('servidor de brokers conectado');
     say('Conectado. Cargando tu cuenta de Trading 212...');
@@ -3061,7 +3061,7 @@ function boot() {
   setTimeout(() => { if (STANDALONE && !S.demo) autoRefreshNow(); }, 1500);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && (S.mode === 'db' || S.mode === 'local')) { runPlans(); renderTop(); if (STANDALONE && !S.demo) autoRefreshNow(); } });
 }
-window.__cartera = { calcPos, cashCalc, planDates, history, priceOn, runPlans, S, D, model };
+window.__nido = { calcPos, cashCalc, planDates, history, priceOn, runPlans, S, D, model };
 boot();
 })();
 

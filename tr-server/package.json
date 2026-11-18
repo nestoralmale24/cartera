@@ -1,9 +1,9 @@
 {
-  "name": "cartera-tr-server",
+  "name": "nido-tr-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Servidor local que hace de puente con Trade Republic (no oficial) para Cartera. Usa trapi (Bun) para el flujo QR de login y sirve el portfolio en solo lectura.",
+  "description": "Servidor local que hace de puente con Trade Republic (no oficial) para Nido. Usa trapi (Bun) para el flujo QR de login y sirve el portfolio en solo lectura.",
   "scripts": {
     "start": "bun server.mjs"
   },
