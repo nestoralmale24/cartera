@@ -2159,7 +2159,6 @@ ACT['theme-toggle'] = () => {
   lsSet(LS_THEME, { t: UI.theme });
   applyTheme();
   renderThemeBtn();
-  toast(UI.theme === 'dark' ? 'Tema oscuro' : 'Tema claro');
 };
 ACT['privacy-toggle'] = () => {
   UI.privacy = !UI.privacy;

@@ -28,6 +28,9 @@ if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';docume
   --c-shadow-hi:0 2px 4px rgba(13,27,42,.08),0 16px 40px rgba(13,27,42,.14);
   --c-glass:rgba(243,247,253,.72);--c-scrim:rgba(5,7,12,.55);
   --c-focus:0 0 0 3px rgba(47,107,219,.40);
+  --gut:clamp(16px,3.2vw,56px);
+  --aura-a:rgba(91,140,255,.34);--aura-b:rgba(200,50,31,.10);--aura-c:rgba(47,107,219,.16);
+  --aura-star:rgba(47,107,219,.38);
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
@@ -40,6 +43,8 @@ if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';docume
   --c-shadow-hi:0 0 0 1px rgba(91,140,255,.25),0 16px 40px rgba(0,0,0,.5);
   --c-glass:rgba(13,27,42,.62);
   --c-focus:0 0 0 3px rgba(91,140,255,.55);
+  --aura-a:rgba(91,140,255,.34);--aura-b:rgba(200,50,31,.16);--aura-c:rgba(47,107,219,.16);
+  --aura-star:rgba(243,247,253,.55);
 }
 /* alias de la app sobre los tokens --c-* */
 :root{
@@ -58,6 +63,18 @@ if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';docume
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;transition:background-color .2s,color .2s}
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);z-index:30;background:var(--glass);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+
+/* fondo ambiental a pantalla completa: anillo de luz, resplandor y estrellas (solo decorativo) */
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(1px 1px at 23px 37px,var(--aura-star),transparent),
+    radial-gradient(1px 1px at 97px 121px,var(--aura-star),transparent),
+    radial-gradient(1.5px 1.5px at 151px 63px,var(--aura-star),transparent),
+    radial-gradient(70% 55% at 50% -12%,var(--aura-a),transparent 72%),
+    radial-gradient(45% 45% at 92% 8%,var(--aura-b),transparent 70%),
+    radial-gradient(50% 50% at 4% 100%,var(--aura-c),transparent 70%);
+  background-size:173px 149px,211px 197px,257px 233px,100% 100%,100% 100%,100% 100%}
+@media (prefers-contrast:more){body::after{display:none}}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .num,.big,.money{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
@@ -83,7 +100,7 @@ html.prv .chosen small{
   user-select:none;-webkit-user-select:none;pointer-events:none;
 }
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--glass);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--line)}
-.topbar-in{max-width:1180px;margin:0 auto;height:64px;display:flex;align-items:center;gap:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topbar-in{max-width:none;margin:0;height:64px;display:flex;align-items:center;gap:16px;padding-left:max(var(--gut),env(safe-area-inset-left,0px));padding-right:max(var(--gut),env(safe-area-inset-right,0px))}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em;white-space:nowrap;color:var(--c-text)}
 .mark{width:28px;height:28px;border-radius:9px;background:var(--na-void);display:grid;place-items:center;color:var(--c-brand);box-shadow:0 0 0 1px var(--c-border)}
 .mark svg{width:18px;height:18px;stroke-width:1.6}
@@ -126,8 +143,8 @@ a.linkbtn{text-decoration:none;display:inline-flex;align-items:center;gap:6px}
 a.linkbtn svg.i{width:16px;height:16px}
 
 /* ---------- layout */
-.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
-.banner{max-width:1180px;margin:12px auto 0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:none;margin:0;padding-left:max(var(--gut),env(safe-area-inset-left,0px));padding-right:max(var(--gut),env(safe-area-inset-right,0px));padding-block:28px 72px}
+.banner{max-width:none;margin:12px 0 0;padding-left:max(var(--gut),env(safe-area-inset-left,0px));padding-right:max(var(--gut),env(safe-area-inset-right,0px))}
 .banner-in{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--accent-soft);color:var(--ink);border-radius:14px;padding:10px 14px;font-size:14px}
 .banner-in.warn{background:var(--warn-soft)}
 .banner-in.err{background:var(--loss-soft)}
@@ -219,9 +236,13 @@ img.logo.sm{width:26px;height:26px;border-radius:7px;object-fit:contain;backgrou
 .simple-list .r small{display:block;font-size:12.5px}
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
 .page-head .big{font-size:clamp(30px,4.4vw,42px)}
+.page-head{align-items:center;margin-bottom:24px}
+.page-head .label{font-size:14px;font-weight:600;margin:0 0 6px}
+.page-head .subline{margin-top:10px}
 
 /* cards for accounts and plans */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,380px));gap:16px}
+@media (max-width:759.98px){.cards{grid-template-columns:1fr}}
 .card{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--shadow);padding:18px;border:0;text-align:left;width:100%;display:grid;gap:12px;transition:transform .12s ease-out,box-shadow .2s;min-width:0}
 .card.tappable{cursor:pointer}
 .card.tappable:hover{box-shadow:var(--c-shadow-hi);transform:translateY(-2px)}
